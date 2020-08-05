@@ -40,7 +40,7 @@ export interface MiniOutType {
 }
 
 declare class LingOssUpload {
-  constructor(ossInfo: OssInfoType, options?: OptionsType): LingOssUpload;
+  constructor(ossInfo: OssInfoType, options?: OptionsType);
 
   upload(uploadType: UploadType): Promise<OutType>;
   createMiniUploadInfo(miniUploadType: UploadType): MiniOutType;
