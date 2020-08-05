@@ -1,11 +1,14 @@
 # upload file to oss
 
+> BREAKING CHANGE
+  get accessId, get accessKey don't provide option key
+
 > constructor need two parameters
 
 | parameter | type | default  | explain |
 | :----: | :----: | :----: | :----: |
-| ossInfo | Object | ———— | oss info |
-| options | Object | { accessId = "accessid", accessKey = "accesskey", rootDir = "formal/" } | accessid && accessKey(these keys get information from ossInfo), rootDir(start directory) |
+| ossInfo | Object | ———— | { accessId, accessKey } oss info |
+| options | Object | { rootDir = "formal/" } | rootDir(start directory) not necessary |
 
 > upload need a object parameter
  
@@ -34,9 +37,7 @@
 const lingOssUpload = new LingOssUpload({
   accessId: "user accessId",
   accessKey: "user accessKey"
-}, {
-  accessId: "accessId",
-  accessKey: "accessKey",
+}, /* not necessary */ {
   rootDir: "formal"
 });
 
@@ -93,9 +94,7 @@ const handleChange = async (e) => {
 const lingOssUpload = new LingOssUpload({
   accessId: "user accessId",
   accessKey: "user accessKey"
-}, {
-  accessId: "accessId",
-  accessKey: "accessKey",
+}, /* not necessary */ {
   rootDir: "formal"
 });
 

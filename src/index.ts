@@ -18,23 +18,19 @@ import {
  */
 class LingOssUpload {
   ossInfo: OssInfoType;
-  accessId: string;
-  accessKey: string;
-  rootDir: string;
+  options: OptionsType;
 
   /**
    * @constructor
    * @param {OssInfoType} ossInfo oss对象
-   * @param {OptionsType} options 配置项，包括accessId、accessKey、rootDir(路径必须以该路径开始)
+   * @param {OptionsType} options 配置项，包括rootDir(路径必须以该路径开始)
    */
   constructor(
     ossInfo: OssInfoType,
-    { accessId = "accessid", accessKey = "accesskey", rootDir = "formal/" } = {}
+    options: OptionsType = { rootDir: "formal/" }
   ) {
     this.ossInfo = ossInfo;
-    this.accessId = accessId;
-    this.accessKey = accessKey;
-    this.rootDir = rootDir;
+    this.options = options;
 
     if (!this.ossAccessId || !this.ossAccessKey) {
       throw new Error("check oss accessId || accessKey");
@@ -47,7 +43,7 @@ class LingOssUpload {
    * @memberof LingOssUpload
    */
   get ossAccessId(): string {
-    return this.ossInfo[this.accessId];
+    return this.ossInfo.accessId;
   }
   /**
    * 获取oss的accessKey
@@ -55,7 +51,7 @@ class LingOssUpload {
    * @memberof LingOssUpload
    */
   get ossAccessKey(): string {
-    return this.ossInfo[this.accessKey];
+    return this.ossInfo.accessKey;
   }
 
   /**
@@ -63,7 +59,11 @@ class LingOssUpload {
    * @param {number} limitSize 上传大小限制
    */
   getPolicyBase64(limitSize: number): string {
-    let conditions: Array<any> = [["starts-with", "$key", this.rootDir]];
+    let conditions: Array<any> = [];
+
+    if (this.options.rootDir) {
+      conditions.push(["starts-with", "$key", this.options.rootDir]);
+    }
 
     // 如果设置限制就追加进去
     if (limitSize && !Number.isNaN(+limitSize)) {

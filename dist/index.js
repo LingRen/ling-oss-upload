@@ -115,14 +115,12 @@ var LingOssUpload = /** @class */ (function () {
     /**
      * @constructor
      * @param {OssInfoType} ossInfo oss对象
-     * @param {OptionsType} options 配置项，包括accessId、accessKey、rootDir(路径必须以该路径开始)
+     * @param {OptionsType} options 配置项，包括rootDir(路径必须以该路径开始)
      */
-    function LingOssUpload(ossInfo, _a) {
-        var _b = _a === void 0 ? {} : _a, _c = _b.accessId, accessId = _c === void 0 ? "accessid" : _c, _d = _b.accessKey, accessKey = _d === void 0 ? "accesskey" : _d, _e = _b.rootDir, rootDir = _e === void 0 ? "formal/" : _e;
+    function LingOssUpload(ossInfo, options) {
+        if (options === void 0) { options = { rootDir: "formal/" }; }
         this.ossInfo = ossInfo;
-        this.accessId = accessId;
-        this.accessKey = accessKey;
-        this.rootDir = rootDir;
+        this.options = options;
         if (!this.ossAccessId || !this.ossAccessKey) {
             throw new Error("check oss accessId || accessKey");
         }
@@ -134,7 +132,7 @@ var LingOssUpload = /** @class */ (function () {
          * @memberof LingOssUpload
          */
         get: function () {
-            return this.ossInfo[this.accessId];
+            return this.ossInfo.accessId;
         },
         enumerable: false,
         configurable: true
@@ -146,7 +144,7 @@ var LingOssUpload = /** @class */ (function () {
          * @memberof LingOssUpload
          */
         get: function () {
-            return this.ossInfo[this.accessKey];
+            return this.ossInfo.accessKey;
         },
         enumerable: false,
         configurable: true
@@ -156,7 +154,10 @@ var LingOssUpload = /** @class */ (function () {
      * @param {number} limitSize 上传大小限制
      */
     LingOssUpload.prototype.getPolicyBase64 = function (limitSize) {
-        var conditions = [["starts-with", "$key", this.rootDir]];
+        var conditions = [];
+        if (this.options.rootDir) {
+            conditions.push(["starts-with", "$key", this.options.rootDir]);
+        }
         // 如果设置限制就追加进去
         if (limitSize && !Number.isNaN(+limitSize)) {
             // 设置上传文件的大小限制，如果超过限制，文件上传到OSS会报错

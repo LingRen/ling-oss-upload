@@ -1,11 +1,10 @@
 export interface OptionsType {
-  accessId?: string;
-  accessKey?: string;
-  rootDir?: string;
+  rootDir: string;
 }
 
 export interface OssInfoType {
-  [key: string]: string;
+  accessId: string;
+  accessKey: string;
 }
 
 export interface UploadType {

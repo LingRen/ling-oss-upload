@@ -1,11 +1,10 @@
 export interface OptionsType {
-  accessId?: string;
-  accessKey?: string;
-  rootDir?: string;
+  rootDir: string;
 }
 
 export interface OssInfoType {
-  [key: string]: string;
+  accessId: string;
+  accessKey: string;
 }
 
 export interface UploadType {
@@ -40,8 +39,8 @@ export interface MiniOutType {
   signature: string;
 }
 
-declare class LingOssUpload {  
-  constructor(ossInfo: OssInfoType, options?: OptionsType);
+declare class LingOssUpload {
+  constructor(ossInfo: OssInfoType, options?: OptionsType): LingOssUpload;
 
   upload(uploadType: UploadType): Promise<OutType>;
   createMiniUploadInfo(miniUploadType: UploadType): MiniOutType;

@@ -12,10 +12,9 @@ export default {
   setup(props, context) {
     const progress = ref(0);
 
-    const lingOssUpload = new LingOssUpload(ossInfo, {
-      accessId: "accessId",
-      accessKey: "accessKey"
-    });
+    const lingOssUpload = new LingOssUpload(ossInfo, {});
+
+    console.log(lingOssUpload.options);
 
     const uploadFile = (host, formData, onProgress) => {
       return new Promise((resolve, reject) => {
