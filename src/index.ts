@@ -23,11 +23,11 @@ class LingOssUpload {
   /**
    * @constructor
    * @param {OssInfoType} ossInfo oss对象
-   * @param {OptionsType} options 配置项，包括rootDir(路径必须以该路径开始)
+   * @param {OptionsType} options 配置项
    */
   constructor(
     ossInfo: OssInfoType,
-    options: OptionsType = { rootDir: "formal/" }
+    options: OptionsType = {}
   ) {
     this.ossInfo = ossInfo;
     this.options = options;
@@ -60,6 +60,8 @@ class LingOssUpload {
    */
   getPolicyBase64(limitSize: number): string {
     let conditions: Array<any> = [];
+
+    conditions.push(['starts-with', '$bucket', '']);
 
     if (this.options.rootDir) {
       conditions.push(["starts-with", "$key", this.options.rootDir]);

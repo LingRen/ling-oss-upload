@@ -8,7 +8,7 @@
 | parameter | type | default  | explain |
 | :----: | :----: | :----: | :----: |
 | ossInfo | Object | ———— | { accessId, accessKey } oss info |
-| options | Object | { rootDir = "formal/" } | rootDir(start directory) not necessary |
+| options | Object | {} | rootDir(start directory) |
 
 > upload need a object parameter
  
@@ -37,8 +37,6 @@
 const lingOssUpload = new LingOssUpload({
   accessId: "user accessId",
   accessKey: "user accessKey"
-}, /* not necessary */ {
-  rootDir: "formal"
 });
 
 // user other ajax
@@ -94,8 +92,6 @@ const handleChange = async (e) => {
 const lingOssUpload = new LingOssUpload({
   accessId: "user accessId",
   accessKey: "user accessKey"
-}, /* not necessary */ {
-  rootDir: "formal"
 });
 
 const formData = lingOssUpload.createMiniUploadInfo({

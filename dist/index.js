@@ -115,10 +115,10 @@ var LingOssUpload = /** @class */ (function () {
     /**
      * @constructor
      * @param {OssInfoType} ossInfo oss对象
-     * @param {OptionsType} options 配置项，包括rootDir(路径必须以该路径开始)
+     * @param {OptionsType} options 配置项
      */
     function LingOssUpload(ossInfo, options) {
-        if (options === void 0) { options = { rootDir: "formal/" }; }
+        if (options === void 0) { options = {}; }
         this.ossInfo = ossInfo;
         this.options = options;
         if (!this.ossAccessId || !this.ossAccessKey) {
@@ -155,6 +155,7 @@ var LingOssUpload = /** @class */ (function () {
      */
     LingOssUpload.prototype.getPolicyBase64 = function (limitSize) {
         var conditions = [];
+        conditions.push(['starts-with', '$bucket', '']);
         if (this.options.rootDir) {
             conditions.push(["starts-with", "$key", this.options.rootDir]);
         }

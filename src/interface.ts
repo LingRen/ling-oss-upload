@@ -1,5 +1,5 @@
 export interface OptionsType {
-  rootDir: string;
+  rootDir?: string;
 }
 
 export interface OssInfoType {

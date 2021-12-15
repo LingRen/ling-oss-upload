@@ -12,7 +12,9 @@ export default {
   setup(props, context) {
     const progress = ref(0);
 
-    const lingOssUpload = new LingOssUpload(ossInfo, {});
+    const lingOssUpload = new LingOssUpload(ossInfo, {
+      rootDire: "en"
+    });
 
     console.log(lingOssUpload.options);
 
@@ -48,9 +50,9 @@ export default {
           file,
           host: ossInfo.host,
           dirName: "formal/test/hehe",
-          selfName: true,
-          limitType: "image",
-          limitSize: 1024 * 1024 * 1,
+          selfName: false,
+          // limitType: "image",
+          limitSize: 1024 * 1024 * 25,
           onProgress: (event) => {
             progress.value = parseInt((event.loaded / event.total) * 100);
           },
