@@ -26,7 +26,7 @@ const platform = os.platform();
 
 function upload(ossUtil) {
   childProcess.execFile(
-    `${path.resolve(ossUtil)}`,
+    `${path.join(__dirname, "/upload", ossUtil)}`,
     [
       `cp`,
       `-c`,
@@ -54,9 +54,11 @@ function upload(ossUtil) {
 }
 
 if (platform == "darwin") {
-  upload(`node_modules/ling-oss-upload/bin/upload/ossutilmac64`);
+  upload(`/ossutilmac64`);
 } else if (platform == "win32") {
-  upload(`node_modules/ling-oss-upload/bin/upload/ossutil64.exe`);
+  upload(`/ossutil64.exe`);
 } else if (platform == "linux") {
-  upload(`node_modules/ling-oss-upload/bin/upload/ossutil64`);
+  upload(`/ossutil64`);
+} else {
+  console.error(chalk.red(`can not support platform: ${platform}`));
 }
