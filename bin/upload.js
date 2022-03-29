@@ -4,9 +4,24 @@ const os = require("os");
 const path = require("path");
 const childProcess = require("child_process");
 const chalk = require("chalk");
-const yargs = require("yargs/yargs");
+const yargs = require("yargs");
 
-const { c: config, d: dest, b: bucket } = yargs(process.argv).argv;
+const { config, dest, bucket } = yargs
+  .command("upload folder to oss")
+  .option("config", {
+    alias: "c",
+    describe: "ossutil config file path"
+  })
+  .option("dest", {
+    alias: "d",
+    describe: "upload folder path"
+  })
+  .option("bucket", {
+    alias: "b",
+    describe: "oss bucket path"
+  })
+  .help().argv;
+
 const platform = os.platform();
 
 function upload(ossUtil) {
@@ -21,7 +36,7 @@ function upload(ossUtil) {
       `--exclude`,
       `.DS_Store`,
       `${path.resolve(dest || "./distCDN")}`,
-      bucket || `oss://cdn-didano/ossutilUpload`
+      bucket
     ],
     (error, stdout, stderr) => {
       if (error) {
