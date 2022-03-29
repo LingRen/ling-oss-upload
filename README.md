@@ -1,7 +1,7 @@
 # upload file to oss
 
-> BREAKING CHANGE
-  get accessId, get accessKey don't provide option key
+> add ossutil
+  upload build files
 
 > constructor need two parameters
 
