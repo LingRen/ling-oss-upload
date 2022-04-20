@@ -1,6 +1,6 @@
 {
   "name": "ling-oss-upload",
-  "version": "2.2.5",
+  "version": "2.2.6",
   "description": "upload file to oss",
   "miniprogram": "dist",
   "main": "index.js",
@@ -9,7 +9,7 @@
     "ossutil": "./bin/upload.js"
   },
   "scripts": {
-    "upload": "./bin/upload.js -c=/Users/ling/.ossutilconfig -d=./dist -b=oss://cdn-didano/ling-test",
+    "upload": "./bin/upload.js -c=/Users/ling/.ossutilconfig --meta -d=./dist -b=oss://cdn-didano/ling-test",
     "build": "webpack",
     "serve": "webpack --config webpack.config.dev.js --output-path ./test && vite --root ./test"
   },

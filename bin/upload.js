@@ -6,7 +6,7 @@ const childProcess = require("child_process");
 const chalk = require("chalk");
 const yargs = require("yargs");
 
-const { config, dest, bucket, meta = "Cache-Control:no-cache" } = yargs
+const { config, dest, bucket, meta } = yargs
   .command("upload folder to oss")
   .option("config", {
     alias: "c",
@@ -40,7 +40,7 @@ function upload(ossUtil) {
       `-r`,
       `--exclude`,
       `.DS_Store`,
-      ...(meta != true ? [`--meta`, meta] : []),
+      ...(meta == void 0 || meta == true ? [] : [`--meta`, meta]),
       `${path.resolve(dest || "./distCDN")}`,
       bucket
     ],
