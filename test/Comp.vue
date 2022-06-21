@@ -48,7 +48,8 @@ export default {
       try {
         const data = await lingOssUpload.upload({
           file,
-          host: ossInfo.host,
+          host: ossInfo.ossHost,
+          cdnHost: ossInfo.host,
           dirName: "formal/test/hehe",
           selfName: false,
           // limitType: "image",

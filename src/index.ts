@@ -143,7 +143,8 @@ class LingOssUpload {
     limitSize = 0,
     limitType = "",
     onProgress = () => {},
-    uploadFile = ajax
+    uploadFile = ajax,
+    cdnHost = host
   }: UploadType): Promise<OutType> {
     // 获取文件信息，
     const fileName = file.name;
@@ -197,7 +198,7 @@ class LingOssUpload {
           // 上传成功的返回结果
           resolve({
             code: 200,
-            data: `${host}/${objectName}`.replace("${filename}", fileName),
+            data: `${cdnHost}/${objectName}`.replace("${filename}", fileName),
             message: "上传成功",
             success: true
           });

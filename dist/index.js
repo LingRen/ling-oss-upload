@@ -225,7 +225,7 @@ var LingOssUpload = /** @class */ (function () {
      *  @param {Function} onProgress 上传进度方法
      */
     LingOssUpload.prototype.upload = function (_a) {
-        var file = _a.file, host = _a.host, dirName = _a.dirName, _b = _a.selfName, selfName = _b === void 0 ? false : _b, _c = _a.limitSize, limitSize = _c === void 0 ? 0 : _c, _d = _a.limitType, limitType = _d === void 0 ? "" : _d, _e = _a.onProgress, onProgress = _e === void 0 ? function () { } : _e, _f = _a.uploadFile, uploadFile = _f === void 0 ? utils_1.ajax : _f;
+        var file = _a.file, host = _a.host, dirName = _a.dirName, _b = _a.selfName, selfName = _b === void 0 ? false : _b, _c = _a.limitSize, limitSize = _c === void 0 ? 0 : _c, _d = _a.limitType, limitType = _d === void 0 ? "" : _d, _e = _a.onProgress, onProgress = _e === void 0 ? function () { } : _e, _f = _a.uploadFile, uploadFile = _f === void 0 ? utils_1.ajax : _f, _g = _a.cdnHost, cdnHost = _g === void 0 ? host : _g;
         // 获取文件信息，
         var fileName = file.name;
         var fileSize = file.size;
@@ -275,7 +275,7 @@ var LingOssUpload = /** @class */ (function () {
                 // 上传成功的返回结果
                 resolve({
                     code: 200,
-                    data: (host + "/" + objectName).replace("${filename}", fileName),
+                    data: (cdnHost + "/" + objectName).replace("${filename}", fileName),
                     message: "上传成功",
                     success: true
                 });

@@ -16,6 +16,7 @@ export interface UploadType {
   limitType?: string | Function;
   onProgress?: Function;
   uploadFile?: Function;
+  cdnHost?: string
 }
 
 export interface MiniUploadType {
