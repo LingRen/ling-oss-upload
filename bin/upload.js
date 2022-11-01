@@ -1,6 +1,7 @@
 #! /usr/bin/env node
 
 const os = require("os");
+const fs = require("fs");
 const path = require("path");
 const childProcess = require("child_process");
 const chalk = require("chalk");
@@ -29,13 +30,15 @@ const { config, dest, bucket, meta } = yargs
 
 const platform = os.platform();
 
+let configPath = config || ".ossutilconfig";
+let existsConfig = fs.existsSync(path.resolve(configPath));
+
 function upload(ossUtil) {
   childProcess.execFile(
     `${path.join(__dirname, "/upload", ossUtil)}`,
     [
       `cp`,
-      `-c`,
-      `${path.resolve(config || ".ossutilconfig")}`,
+      ...(existsConfig ? [`-c`, `${path.resolve(configPath)}`] : []),
       `-f`,
       `-r`,
       `--exclude`,
