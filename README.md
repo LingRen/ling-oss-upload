@@ -1,7 +1,7 @@
 # upload file to oss
 
 > add ossutil
-  upload build files
+  upload build files, auto find .ossutilconfig config.(current project root path > global)
 
 > constructor need two parameters
 
