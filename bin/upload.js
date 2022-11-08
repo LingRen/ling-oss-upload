@@ -7,7 +7,7 @@ const childProcess = require("child_process");
 const chalk = require("chalk");
 const yargs = require("yargs");
 
-const { config, dest, bucket, meta } = yargs
+const { config, dest, bucket, meta, download } = yargs
   .command("upload folder to oss")
   .option("config", {
     alias: "c",
@@ -20,6 +20,10 @@ const { config, dest, bucket, meta } = yargs
   .option("bucket", {
     alias: "b",
     describe: "oss bucket path"
+  })
+  .option("download", {
+    alias: "download",
+    describe: "is download"
   })
   .option("meta", {
     alias: "m",
@@ -44,8 +48,9 @@ function upload(ossUtil) {
       `--exclude`,
       `.DS_Store`,
       ...(meta == void 0 || meta == true ? [] : [`--meta`, meta]),
-      `${path.resolve(dest || "./distCDN")}`,
-      bucket
+      ...(download
+        ? [`${path.resolve(dest || "./distCDN")}`, bucket, "--update"].reverse()
+        : [`${path.resolve(dest || "./distCDN")}`, bucket])
     ],
     (error, stdout, stderr) => {
       if (error) {

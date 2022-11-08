@@ -10,6 +10,7 @@
   },
   "scripts": {
     "upload": "./bin/upload.js --meta -d=./dist -b=oss://cdn-didano/ling-test",
+    "download": "./bin/upload.js --meta --download -d=./dist -b=oss://cdn-didano/ling-test/",
     "build": "webpack",
     "serve": "webpack --config webpack.config.dev.js --output-path ./test && vite --root ./test"
   },
