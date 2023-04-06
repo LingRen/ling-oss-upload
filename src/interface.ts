@@ -22,6 +22,7 @@ export interface UploadType {
 export interface MiniUploadType {
   dirName: string;
   limitSize?: number;
+  selfName?: boolean;
 }
 
 export interface OutType {
