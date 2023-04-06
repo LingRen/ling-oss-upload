@@ -220,10 +220,11 @@ class LingOssUpload {
    */
   createMiniUploadInfo({
     dirName,
-    limitSize = 0
+    limitSize = 0,
+    selfName = false,
   }: MiniUploadType): MiniOutType {
     // gen random file name
-    const fileName = this.getCalculateObjectName("", false);
+    const fileName = this.getCalculateObjectName("", selfName);
     const policy = this.getPolicyBase64(limitSize);
     const signature = this.getSignature(this.ossAccessKey, policy);
     const objectName = this.getDirName(dirName) + fileName;
