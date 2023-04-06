@@ -25,10 +25,7 @@ class LingOssUpload {
    * @param {OssInfoType} ossInfo oss对象
    * @param {OptionsType} options 配置项
    */
-  constructor(
-    ossInfo: OssInfoType,
-    options: OptionsType = {}
-  ) {
+  constructor(ossInfo: OssInfoType, options: OptionsType = {}) {
     this.ossInfo = ossInfo;
     this.options = options;
 
@@ -61,7 +58,7 @@ class LingOssUpload {
   getPolicyBase64(limitSize: number): string {
     let conditions: Array<any> = [];
 
-    conditions.push(['starts-with', '$bucket', '']);
+    conditions.push(["starts-with", "$bucket", ""]);
 
     if (this.options.rootDir) {
       conditions.push(["starts-with", "$key", this.options.rootDir]);
@@ -142,7 +139,7 @@ class LingOssUpload {
     selfName = false,
     limitSize = 0,
     limitType = "",
-    onProgress = () => {},
+    onProgress = () => ({}),
     uploadFile = ajax,
     cdnHost = host
   }: UploadType): Promise<OutType> {
@@ -221,7 +218,7 @@ class LingOssUpload {
   createMiniUploadInfo({
     dirName,
     limitSize = 0,
-    selfName = false,
+    selfName = false
   }: MiniUploadType): MiniOutType {
     // gen random file name
     const fileName = this.getCalculateObjectName("", selfName);
