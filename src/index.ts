@@ -23,12 +23,9 @@ class LingOssUpload {
   /**
    * @constructor
    * @param {OssInfoType} ossInfo oss对象
-   * @param {OptionsType} options 配置项，包括rootDir(路径必须以该路径开始)
+   * @param {OptionsType} options 配置项
    */
-  constructor(
-    ossInfo: OssInfoType,
-    options: OptionsType = { rootDir: "formal/" }
-  ) {
+  constructor(ossInfo: OssInfoType, options: OptionsType = {}) {
     this.ossInfo = ossInfo;
     this.options = options;
 
@@ -60,6 +57,8 @@ class LingOssUpload {
    */
   getPolicyBase64(limitSize: number): string {
     let conditions: Array<any> = [];
+
+    conditions.push(["starts-with", "$bucket", ""]);
 
     if (this.options.rootDir) {
       conditions.push(["starts-with", "$key", this.options.rootDir]);
@@ -140,8 +139,9 @@ class LingOssUpload {
     selfName = false,
     limitSize = 0,
     limitType = "",
-    onProgress = () => {},
-    uploadFile = ajax
+    onProgress = () => ({}),
+    uploadFile = ajax,
+    cdnHost = host
   }: UploadType): Promise<OutType> {
     // 获取文件信息，
     const fileName = file.name;
@@ -195,7 +195,7 @@ class LingOssUpload {
           // 上传成功的返回结果
           resolve({
             code: 200,
-            data: `${host}/${objectName}`.replace("${filename}", fileName),
+            data: `${cdnHost}/${objectName}`.replace("${filename}", fileName),
             message: "上传成功",
             success: true
           });
@@ -217,10 +217,11 @@ class LingOssUpload {
    */
   createMiniUploadInfo({
     dirName,
-    limitSize = 0
+    limitSize = 0,
+    selfName = false
   }: MiniUploadType): MiniOutType {
     // gen random file name
-    const fileName = this.getCalculateObjectName("", false);
+    const fileName = this.getCalculateObjectName("", selfName);
     const policy = this.getPolicyBase64(limitSize);
     const signature = this.getSignature(this.ossAccessKey, policy);
     const objectName = this.getDirName(dirName) + fileName;

@@ -1,14 +1,14 @@
 # upload file to oss
 
-> BREAKING CHANGE
-  get accessId, get accessKey don't provide option key
+> add ossutil
+  upload build files, auto find .ossutilconfig config.(current project root path > global)
 
 > constructor need two parameters
 
 | parameter | type | default  | explain |
 | :----: | :----: | :----: | :----: |
 | ossInfo | Object | ———— | { accessId, accessKey } oss info |
-| options | Object | { rootDir = "formal/" } | rootDir(start directory) not necessary |
+| options | Object | {} | rootDir(start directory) |
 
 > upload need a object parameter
  
@@ -37,8 +37,6 @@
 const lingOssUpload = new LingOssUpload({
   accessId: "user accessId",
   accessKey: "user accessKey"
-}, /* not necessary */ {
-  rootDir: "formal"
 });
 
 // user other ajax
@@ -94,8 +92,6 @@ const handleChange = async (e) => {
 const lingOssUpload = new LingOssUpload({
   accessId: "user accessId",
   accessKey: "user accessKey"
-}, /* not necessary */ {
-  rootDir: "formal"
 });
 
 const formData = lingOssUpload.createMiniUploadInfo({
