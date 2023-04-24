@@ -2,7 +2,13 @@ import Base64 from "crypto-js/enc-base64";
 import HmacSHA1 from "crypto-js/hmac-sha1";
 import Utf8 from "crypto-js/enc-utf8";
 
-import { getMessage2Xml, getRandomString, getSuffix, ajax } from "./utils";
+import {
+  getMessage2Xml,
+  getRandomString,
+  getSuffix,
+  ajax,
+  compressorImage
+} from "./utils";
 
 import {
   OptionsType,
@@ -132,7 +138,7 @@ class LingOssUpload {
    *  @param {string} dirName 上传到oss路径
    *  @param {Function} onProgress 上传进度方法
    */
-  upload({
+  async upload({
     file,
     host,
     dirName,
@@ -141,12 +147,19 @@ class LingOssUpload {
     limitType = "",
     onProgress = () => ({}),
     uploadFile = ajax,
-    cdnHost = host
+    cdnHost = host,
+    isCompressor = true,
+    options = {}
   }: UploadType): Promise<OutType> {
     // 获取文件信息，
     const fileName = file.name;
     const fileSize = file.size;
     const fileType = file.type;
+
+    if (fileType.startsWith("image") && isCompressor) {
+      file = await compressorImage(file, options);
+    }
+
     if (limitType && fileType) {
       let isLimitType = true;
       if (typeof limitType === "function") {

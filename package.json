@@ -1,6 +1,6 @@
 {
   "name": "ling-oss-upload",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "upload file to oss",
   "miniprogram": "dist",
   "main": "index.js",
@@ -22,6 +22,7 @@
   "license": "ISC",
   "homepage": "https://gitee.com/ling_ren",
   "dependencies": {
+    "compressorjs": "^1.2.1",
     "crypto-js": "^3.3.0"
   },
   "devDependencies": {

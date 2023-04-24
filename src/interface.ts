@@ -17,6 +17,8 @@ export interface UploadType {
   onProgress?: Function;
   uploadFile?: Function;
   cdnHost?: string;
+  isCompressor?: Boolean;
+  options?: Compressor.Options;
 }
 
 export interface MiniUploadType {

@@ -1,3 +1,22 @@
+import Compressor from "compressorjs";
+
+export function compressorImage(
+  file: File,
+  options: Compressor.Options = {}
+): Promise<File> {
+  return new Promise((resolve) => {
+    new Compressor(file, {
+      ...options,
+      success(result: File) {
+        resolve(result);
+      },
+      error(err) {
+        console.log(err.message);
+        resolve(file);
+      }
+    });
+  });
+}
 /**
  * 获取XML信息
  * @param {string} data xml字符串
