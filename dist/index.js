@@ -314,6 +314,9 @@ var LingOssUpload = /** @class */ (function () {
                         formData.append("success_action_status", "200");
                         formData.append("signature", this.getSignature(this.ossAccessKey, policy));
                         formData.append("file", file);
+                        if (this.ossInfo.securityToken) {
+                            formData.append("x-oss-security-token", this.ossInfo.securityToken);
+                        }
                         return [2 /*return*/, new Promise(function (resolve, reject) {
                                 uploadFile(host, formData, onProgress)
                                     .then(function () {
@@ -356,7 +359,8 @@ var LingOssUpload = /** @class */ (function () {
             success_action_status: 200,
             OSSAccessKeyId: this.ossAccessId,
             policy: policy,
-            signature: signature
+            signature: signature,
+            "x-oss-security-token": this.ossInfo.securityToken
         };
     };
     return LingOssUpload;
