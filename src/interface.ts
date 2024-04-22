@@ -5,6 +5,7 @@ export interface OptionsType {
 export interface OssInfoType {
   accessId: string;
   accessKey: string;
+  securityToken?: string;
 }
 
 export interface UploadType {
@@ -41,4 +42,5 @@ export interface MiniOutType {
   OSSAccessKeyId: string;
   policy: string;
   signature: string;
+  "x-oss-security-token"?: string;
 }

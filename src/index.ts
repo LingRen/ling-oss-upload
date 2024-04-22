@@ -201,6 +201,9 @@ class LingOssUpload {
     formData.append("success_action_status", "200");
     formData.append("signature", this.getSignature(this.ossAccessKey, policy));
     formData.append("file", file);
+    if (this.ossInfo.securityToken) {
+      formData.append("x-oss-security-token", this.ossInfo.securityToken);
+    }
 
     return new Promise((resolve, reject) => {
       uploadFile(host, formData, onProgress)
@@ -245,7 +248,8 @@ class LingOssUpload {
       success_action_status: 200,
       OSSAccessKeyId: this.ossAccessId,
       policy,
-      signature
+      signature,
+      "x-oss-security-token": this.ossInfo.securityToken
     };
   }
 }
