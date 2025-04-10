@@ -1,6 +1,6 @@
 {
   "name": "ling-oss-upload",
-  "version": "2.4.1",
+  "version": "2.4.2",
   "description": "upload file to oss",
   "miniprogram": "dist",
   "main": "index.js",

@@ -1607,7 +1607,16 @@ function compressorImage(file, options) {
     if (options === void 0) { options = {}; }
     return new Promise(function (resolve) {
         new compressorjs_1.default(file, __assign(__assign({}, options), { success: function (result) {
-                resolve(result);
+                if (result instanceof File) {
+                    resolve(result);
+                }
+                else {
+                    var newFile = new File([result], file.name, {
+                        type: file.type,
+                        lastModified: file.lastModified
+                    });
+                    resolve(newFile);
+                }
             },
             error: function (err) {
                 console.log(err.message);
