@@ -7,8 +7,16 @@ export function compressorImage(
   return new Promise((resolve) => {
     new Compressor(file, {
       ...options,
-      success(result: File) {
-        resolve(result);
+      success(result: File | Blob) {
+        if (result instanceof File) {
+          resolve(result);
+        } else {
+          const newFile = new File([result], file.name, {
+            type: file.type,
+            lastModified: file.lastModified
+          });
+          resolve(newFile);
+        }
       },
       error(err) {
         console.log(err.message);
