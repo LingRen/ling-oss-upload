@@ -51,7 +51,7 @@ export default {
           host: ossInfo.ossHost,
           cdnHost: ossInfo.host,
           dirName: "formal/test/hehe",
-          selfName: false,
+          selfName: true,
           // limitType: "image",
           limitSize: 1024 * 1024 * 25,
           onProgress: (event) => {
