@@ -80,3 +80,24 @@ export interface MultipartUploadOptions {
   onProgress?: Function;
   resumeKey?: string;
 }
+
+export interface MiniSignedFields {
+  OSSAccessKeyId: string;
+  policy: string;
+  signature: string;
+  "x-oss-security-token"?: string;
+}
+
+export interface MiniSignRequest {
+  objectKey: string;
+  limitSize?: number;
+}
+
+export type GetMiniUploadInfo = (req: MiniSignRequest) => Promise<MiniSignedFields>;
+
+export interface MiniUploadBySignerOptions {
+  dirName: string;
+  getMiniUploadInfo: GetMiniUploadInfo;
+  limitSize?: number;
+  selfName?: boolean;
+}

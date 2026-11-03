@@ -24,10 +24,14 @@
  *   GET /sign?verb=DELETE&objectKey=formal/a.jpg&uploadId=xxx&action=abort
  *   GET /sign?verb=GET&objectKey=formal/a.jpg&uploadId=xxx&action=listParts
  *   返回: { "url": "https://..." }
+ *
+ *   GET /mini-post?objectKey=formal/a.jpg&limitSize=1048576
+ *   返回: { "OSSAccessKeyId", "policy", "signature", "x-oss-security-token" }
  */
 
 const http = require("http");
 const url = require("url");
+const crypto = require("crypto");
 const OSS = require("ali-oss");
 
 const region = process.env.OSS_REGION || "oss-cn-hangzhou";
@@ -90,6 +94,37 @@ function sign(query) {
   });
 }
 
+// 小程序 POST 表单签名: 构建 policy + HMAC-SHA1 签名(后端持 STS 凭证)
+function signMiniPost(objectKey, limitSize) {
+  if (!objectKey) {
+    throw new Error("缺少 objectKey");
+  }
+
+  const expiration = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+  const conditions = [
+    ["eq", "$key", objectKey],
+    ["starts-with", "$bucket", ""]
+  ];
+  if (limitSize && !isNaN(+limitSize)) {
+    conditions.push(["content-length-range", 0, +limitSize]);
+  }
+
+  const policy = Buffer.from(
+    JSON.stringify({ expiration, conditions })
+  ).toString("base64");
+  const signature = crypto
+    .createHmac("sha1", accessKeySecret)
+    .update(policy)
+    .digest("base64");
+
+  return {
+    OSSAccessKeyId: accessKeyId,
+    policy,
+    signature,
+    "x-oss-security-token": stsToken
+  };
+}
+
 const server = http.createServer((req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
@@ -107,6 +142,20 @@ const server = http.createServer((req, res) => {
       const signedUrl = sign(parsed.query);
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ url: signedUrl }));
+    } catch (e) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
+  if (parsed.pathname === "/mini-post") {
+    try {
+      const objectKey = String(parsed.query.objectKey || "");
+      const limitSize = Number(parsed.query.limitSize || 0);
+      const fields = signMiniPost(objectKey, limitSize);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(fields));
     } catch (e) {
       res.writeHead(400, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: e.message }));

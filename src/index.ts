@@ -17,7 +17,8 @@ import {
   MiniOutType,
   MiniUploadType,
   OssInfoType,
-  MultipartUploadOptions
+  MultipartUploadOptions,
+  MiniUploadBySignerOptions
 } from "./interface";
 
 import {
@@ -266,6 +267,34 @@ class LingOssUpload {
       policy,
       signature,
       "x-oss-security-token": this.ossInfo.securityToken
+    };
+  }
+  /**
+   * 小程序零密钥上传：通过注入的 getMiniUploadInfo 回调向后端获取签名 POST 字段
+   * 小程序不持有 accessKeySecret，policy/signature 由后端用 STS 签名
+   * @param {MiniUploadBySignerOptions} options 配置项
+   */
+  async createMiniUploadInfoBySigner({
+    dirName,
+    getMiniUploadInfo,
+    limitSize = 0,
+    selfName = false
+  }: MiniUploadBySignerOptions): Promise<MiniOutType> {
+    // 计算 objectKey（复用命名逻辑，无需密钥）
+    const fileName = this.getCalculateObjectName("", selfName);
+    const objectName = this.getDirName(dirName) + fileName;
+
+    // 从后端获取签名 POST 字段
+    const signed = await getMiniUploadInfo({ objectKey: objectName, limitSize });
+
+    return {
+      name: fileName,
+      key: objectName,
+      success_action_status: 200,
+      OSSAccessKeyId: signed.OSSAccessKeyId,
+      policy: signed.policy,
+      signature: signed.signature,
+      "x-oss-security-token": signed["x-oss-security-token"]
     };
   }
   /**

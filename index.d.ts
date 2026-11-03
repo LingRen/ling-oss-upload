@@ -77,11 +77,33 @@ export interface MultipartUploadOptions {
   resumeKey?: string;
 }
 
+export interface MiniSignedFields {
+  OSSAccessKeyId: string;
+  policy: string;
+  signature: string;
+  "x-oss-security-token"?: string;
+}
+
+export interface MiniSignRequest {
+  objectKey: string;
+  limitSize?: number;
+}
+
+export type GetMiniUploadInfo = (req: MiniSignRequest) => Promise<MiniSignedFields>;
+
+export interface MiniUploadBySignerOptions {
+  dirName: string;
+  getMiniUploadInfo: GetMiniUploadInfo;
+  limitSize?: number;
+  selfName?: boolean;
+}
+
 declare class LingOssUpload {
   constructor(ossInfo?: OssInfoType, options?: OptionsType);
 
   upload(uploadType: UploadType): Promise<OutType>;
   createMiniUploadInfo(miniUploadType: MiniUploadType): MiniOutType;
+  createMiniUploadInfoBySigner(options: MiniUploadBySignerOptions): Promise<MiniOutType>;
   uploadLarge(options: MultipartUploadOptions): Promise<OutType>;
 }
 
