@@ -1,5 +1,5 @@
 export interface OptionsType {
-  rootDir: string;
+  rootDir?: string;
 }
 
 export interface OssInfoType {
@@ -17,11 +17,15 @@ export interface UploadType {
   limitType?: string | Function;
   onProgress?: Function;
   uploadFile?: Function;
+  cdnHost?: string;
+  isCompressor?: Boolean;
+  options?: Compressor.Options;
 }
 
 export interface MiniUploadType {
   dirName: string;
   limitSize?: number;
+  selfName?: boolean;
 }
 
 export interface OutType {
