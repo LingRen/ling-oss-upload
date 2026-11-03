@@ -16,8 +16,22 @@ import {
   OutType,
   MiniOutType,
   MiniUploadType,
-  OssInfoType
+  OssInfoType,
+  MultipartUploadOptions
 } from "./interface";
+
+import {
+  initiateMultipart,
+  uploadPart,
+  completeMultipart,
+  abortMultipart,
+  listParts,
+  runWithConcurrency,
+  getStorageKey,
+  loadResumeState,
+  saveResumeState,
+  clearResumeState
+} from "./multipart";
 
 /**
  * 上传文件到oss
@@ -31,13 +45,9 @@ class LingOssUpload {
    * @param {OssInfoType} ossInfo oss对象
    * @param {OptionsType} options 配置项
    */
-  constructor(ossInfo: OssInfoType, options: OptionsType = {}) {
+  constructor(ossInfo: OssInfoType = {} as OssInfoType, options: OptionsType = {}) {
     this.ossInfo = ossInfo;
     this.options = options;
-
-    if (!this.ossAccessId || !this.ossAccessKey) {
-      throw new Error("check oss accessId || accessKey");
-    }
   }
 
   /**
@@ -151,6 +161,9 @@ class LingOssUpload {
     isCompressor = true,
     options = {}
   }: UploadType): Promise<OutType> {
+    if (!this.ossAccessId || !this.ossAccessKey) {
+      throw new Error("check oss accessId || accessKey");
+    }
     // 获取文件信息，
     const fileName = file.name;
     const fileSize = file.size;
@@ -236,6 +249,9 @@ class LingOssUpload {
     limitSize = 0,
     selfName = false
   }: MiniUploadType): MiniOutType {
+    if (!this.ossAccessId || !this.ossAccessKey) {
+      throw new Error("check oss accessId || accessKey");
+    }
     // gen random file name
     const fileName = this.getCalculateObjectName("", selfName);
     const policy = this.getPolicyBase64(limitSize);
@@ -252,6 +268,143 @@ class LingOssUpload {
       "x-oss-security-token": this.ossInfo.securityToken
     };
   }
+  /**
+   * 大文件分片上传（支持断点续传）
+   * 通过 getSignedUrl 回调获取签名 URL，浏览器不持有密钥
+   * @param {MultipartUploadOptions} options 配置项
+   */
+  async uploadLarge({
+    file,
+    dirName,
+    getSignedUrl,
+    selfName = false,
+    chunkSize = 1024 * 1024,
+    concurrency = 3,
+    onProgress = () => ({}),
+    resumeKey
+  }: MultipartUploadOptions): Promise<OutType> {
+    const fileName = file.name;
+    const fileSize = file.size;
+
+    const storageKey = getStorageKey(resumeKey, file);
+    let state = loadResumeState(storageKey);
+
+    let objectName: string;
+    if (state && state.objectKey && state.chunkSize === chunkSize) {
+      // 命中续传状态：复用已存 objectName 与 uploadId
+      objectName = state.objectKey;
+    } else {
+      // 全新上传：计算 objectName 并初始化分片（selfName 用真实文件名，否则随机名+后缀）
+      objectName = selfName
+        ? this.getDirName(dirName) + fileName
+        : this.getDirName(dirName) + getRandomString() + getSuffix(fileName);
+      state = {
+        objectKey: objectName,
+        uploadId: await initiateMultipart(getSignedUrl, objectName),
+        chunkSize,
+        parts: []
+      };
+      saveResumeState(storageKey, state);
+    }
+
+    // 与服务端对账已传分片（uploadId 可能已被回收）
+    try {
+      const serverParts = await listParts(
+        getSignedUrl,
+        objectName,
+        state.uploadId
+      );
+      state.parts = serverParts;
+      saveResumeState(storageKey, state);
+    } catch (e) {
+      const uploadId = await initiateMultipart(getSignedUrl, objectName);
+      state = { objectKey: objectName, uploadId, chunkSize, parts: [] };
+      saveResumeState(storageKey, state);
+    }
+
+    // 计算剩余待传分片与已完成字节
+    const completed: { [key: number]: boolean } = {};
+    state.parts.forEach((p) => {
+      completed[p.partNumber] = true;
+    });
+
+    let completedBytes = state.parts.reduce((sum, p) => {
+      const start = (p.partNumber - 1) * chunkSize;
+      return sum + Math.min(chunkSize, fileSize - start);
+    }, 0);
+
+    const totalParts = Math.ceil(fileSize / chunkSize);
+    const pending: Array<{ partNumber: number; blob: Blob }> = [];
+    for (let n = 1; n <= totalParts; n++) {
+      if (!completed[n]) {
+        const start = (n - 1) * chunkSize;
+        pending.push({
+          partNumber: n,
+          blob: file.slice(start, Math.min(start + chunkSize, fileSize))
+        });
+      }
+    }
+
+    const inFlight: { [key: number]: number } = {};
+
+    const report = () => {
+      let loaded = completedBytes;
+      Object.keys(inFlight).forEach((k) => {
+        loaded += inFlight[Number(k)];
+      });
+      onProgress({ loaded, total: fileSize });
+    };
+
+    try {
+      await runWithConcurrency(pending, concurrency, async (item) => {
+        const part = await uploadPart(
+          getSignedUrl,
+          objectName,
+          state.uploadId,
+          item.partNumber,
+          item.blob,
+          (e: ProgressEvent) => {
+            inFlight[item.partNumber] = e.loaded;
+            report();
+          }
+        );
+        delete inFlight[item.partNumber];
+        completedBytes += item.blob.size;
+        state.parts.push(part);
+        saveResumeState(storageKey, state);
+        report();
+      });
+
+      await completeMultipart(
+        getSignedUrl,
+        objectName,
+        state.uploadId,
+        state.parts
+      );
+      clearResumeState(storageKey);
+    } catch (e) {
+      try {
+        await abortMultipart(getSignedUrl, objectName, state.uploadId);
+      } catch (abortError) {
+        // 中止失败时忽略，尽力清理即可
+      }
+      clearResumeState(storageKey);
+      return Promise.reject({
+        code: 400,
+        data: "",
+        message: (e && e.message) || getMessage2Xml(e),
+        success: false
+      });
+    }
+
+    return {
+      code: 200,
+      data: objectName,
+      message: "上传成功",
+      success: true
+    };
+  }
 }
+
 
 export default LingOssUpload;

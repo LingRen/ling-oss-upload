@@ -15,3 +15,12 @@ yarn-error.log*
 /test/ossInfo.js
 /test/index.js
 /test/index.min.js
+
+# SuperSpec git worktrees
+.worktrees
+.codebuddy
+.codex
+openspec
+
+# test build output
+.test-dist/

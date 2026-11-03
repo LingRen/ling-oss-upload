@@ -44,3 +44,39 @@ export interface MiniOutType {
   signature: string;
   "x-oss-security-token"?: string;
 }
+
+export type SignedUrlVerb = "POST" | "PUT" | "DELETE" | "GET";
+export type SignedUrlAction = "init" | "part" | "complete" | "abort" | "listParts";
+
+export interface SignedUrlRequest {
+  verb: SignedUrlVerb;
+  objectKey: string;
+  partNumber?: number;
+  uploadId?: string;
+  action?: SignedUrlAction;
+}
+
+export type GetSignedUrl = (req: SignedUrlRequest) => Promise<string>;
+
+export interface PartInfo {
+  partNumber: number;
+  etag: string;
+}
+
+export interface ResumeState {
+  objectKey: string;
+  uploadId: string;
+  chunkSize: number;
+  parts: PartInfo[];
+}
+
+export interface MultipartUploadOptions {
+  file: File;
+  dirName: string;
+  getSignedUrl: GetSignedUrl;
+  selfName?: boolean;
+  chunkSize?: number;
+  concurrency?: number;
+  onProgress?: Function;
+  resumeKey?: string;
+}
