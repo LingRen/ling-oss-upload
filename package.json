@@ -57,5 +57,12 @@
     "webpack-cli": "^3.3.4",
     "webpack-merge": "^4.2.2",
     "yargs": "^13.3.2"
-  }
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "dist/",
+    "bin/",
+    "CHANGELOG.md"
+  ]
 }
