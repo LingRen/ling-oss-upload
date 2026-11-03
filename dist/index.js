@@ -369,6 +369,36 @@ var LingOssUpload = /** @class */ (function () {
         };
     };
     /**
+     * 小程序零密钥上传：通过注入的 getMiniUploadInfo 回调向后端获取签名 POST 字段
+     * 小程序不持有 accessKeySecret，policy/signature 由后端用 STS 签名
+     * @param {MiniUploadBySignerOptions} options 配置项
+     */
+    LingOssUpload.prototype.createMiniUploadInfoBySigner = function (_a) {
+        var dirName = _a.dirName, getMiniUploadInfo = _a.getMiniUploadInfo, _b = _a.limitSize, limitSize = _b === void 0 ? 0 : _b, _c = _a.selfName, selfName = _c === void 0 ? false : _c;
+        return __awaiter(this, void 0, void 0, function () {
+            var fileName, objectName, signed;
+            return __generator(this, function (_d) {
+                switch (_d.label) {
+                    case 0:
+                        fileName = this.getCalculateObjectName("", selfName);
+                        objectName = this.getDirName(dirName) + fileName;
+                        return [4 /*yield*/, getMiniUploadInfo({ objectKey: objectName, limitSize: limitSize })];
+                    case 1:
+                        signed = _d.sent();
+                        return [2 /*return*/, {
+                                name: fileName,
+                                key: objectName,
+                                success_action_status: 200,
+                                OSSAccessKeyId: signed.OSSAccessKeyId,
+                                policy: signed.policy,
+                                signature: signed.signature,
+                                "x-oss-security-token": signed["x-oss-security-token"]
+                            }];
+                }
+            });
+        });
+    };
+    /**
      * 大文件分片上传（支持断点续传）
      * 通过 getSignedUrl 回调获取签名 URL，浏览器不持有密钥
      * @param {MultipartUploadOptions} options 配置项
