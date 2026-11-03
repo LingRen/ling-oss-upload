@@ -144,6 +144,7 @@ var enc_base64_1 = __importDefault(__webpack_require__(1));
 var hmac_sha1_1 = __importDefault(__webpack_require__(3));
 var enc_utf8_1 = __importDefault(__webpack_require__(6));
 var utils_1 = __webpack_require__(7);
+var multipart_1 = __webpack_require__(9);
 /**
  * 上传文件到oss
  */
@@ -154,12 +155,10 @@ var LingOssUpload = /** @class */ (function () {
      * @param {OptionsType} options 配置项
      */
     function LingOssUpload(ossInfo, options) {
+        if (ossInfo === void 0) { ossInfo = {}; }
         if (options === void 0) { options = {}; }
         this.ossInfo = ossInfo;
         this.options = options;
-        if (!this.ossAccessId || !this.ossAccessKey) {
-            throw new Error("check oss accessId || accessKey");
-        }
     }
     Object.defineProperty(LingOssUpload.prototype, "ossAccessId", {
         /**
@@ -267,6 +266,9 @@ var LingOssUpload = /** @class */ (function () {
             return __generator(this, function (_k) {
                 switch (_k.label) {
                     case 0:
+                        if (!this.ossAccessId || !this.ossAccessKey) {
+                            throw new Error("check oss accessId || accessKey");
+                        }
                         fileName = file.name;
                         fileSize = file.size;
                         fileType = file.type;
@@ -348,6 +350,9 @@ var LingOssUpload = /** @class */ (function () {
      */
     LingOssUpload.prototype.createMiniUploadInfo = function (_a) {
         var dirName = _a.dirName, _b = _a.limitSize, limitSize = _b === void 0 ? 0 : _b, _c = _a.selfName, selfName = _c === void 0 ? false : _c;
+        if (!this.ossAccessId || !this.ossAccessKey) {
+            throw new Error("check oss accessId || accessKey");
+        }
         // gen random file name
         var fileName = this.getCalculateObjectName("", selfName);
         var policy = this.getPolicyBase64(limitSize);
@@ -362,6 +367,146 @@ var LingOssUpload = /** @class */ (function () {
             signature: signature,
             "x-oss-security-token": this.ossInfo.securityToken
         };
+    };
+    /**
+     * 大文件分片上传（支持断点续传）
+     * 通过 getSignedUrl 回调获取签名 URL，浏览器不持有密钥
+     * @param {MultipartUploadOptions} options 配置项
+     */
+    LingOssUpload.prototype.uploadLarge = function (_a) {
+        var file = _a.file, dirName = _a.dirName, getSignedUrl = _a.getSignedUrl, _b = _a.selfName, selfName = _b === void 0 ? false : _b, _c = _a.chunkSize, chunkSize = _c === void 0 ? 1024 * 1024 : _c, _d = _a.concurrency, concurrency = _d === void 0 ? 3 : _d, _e = _a.onProgress, onProgress = _e === void 0 ? function () { return ({}); } : _e, resumeKey = _a.resumeKey;
+        return __awaiter(this, void 0, void 0, function () {
+            var fileName, fileSize, storageKey, state, objectName, _f, serverParts, e_1, uploadId, completed, completedBytes, totalParts, pending, n, start, inFlight, report, e_2, abortError_1;
+            var _this = this;
+            return __generator(this, function (_g) {
+                switch (_g.label) {
+                    case 0:
+                        fileName = file.name;
+                        fileSize = file.size;
+                        storageKey = multipart_1.getStorageKey(resumeKey, file);
+                        state = multipart_1.loadResumeState(storageKey);
+                        if (!(state && state.objectKey && state.chunkSize === chunkSize)) return [3 /*break*/, 1];
+                        // 命中续传状态：复用已存 objectName 与 uploadId
+                        objectName = state.objectKey;
+                        return [3 /*break*/, 3];
+                    case 1:
+                        // 全新上传：计算 objectName 并初始化分片（selfName 用真实文件名，否则随机名+后缀）
+                        objectName = selfName
+                            ? this.getDirName(dirName) + fileName
+                            : this.getDirName(dirName) + utils_1.getRandomString() + utils_1.getSuffix(fileName);
+                        _f = {
+                            objectKey: objectName
+                        };
+                        return [4 /*yield*/, multipart_1.initiateMultipart(getSignedUrl, objectName)];
+                    case 2:
+                        state = (_f.uploadId = _g.sent(),
+                            _f.chunkSize = chunkSize,
+                            _f.parts = [],
+                            _f);
+                        multipart_1.saveResumeState(storageKey, state);
+                        _g.label = 3;
+                    case 3:
+                        _g.trys.push([3, 5, , 7]);
+                        return [4 /*yield*/, multipart_1.listParts(getSignedUrl, objectName, state.uploadId)];
+                    case 4:
+                        serverParts = _g.sent();
+                        state.parts = serverParts;
+                        multipart_1.saveResumeState(storageKey, state);
+                        return [3 /*break*/, 7];
+                    case 5:
+                        e_1 = _g.sent();
+                        return [4 /*yield*/, multipart_1.initiateMultipart(getSignedUrl, objectName)];
+                    case 6:
+                        uploadId = _g.sent();
+                        state = { objectKey: objectName, uploadId: uploadId, chunkSize: chunkSize, parts: [] };
+                        multipart_1.saveResumeState(storageKey, state);
+                        return [3 /*break*/, 7];
+                    case 7:
+                        completed = {};
+                        state.parts.forEach(function (p) {
+                            completed[p.partNumber] = true;
+                        });
+                        completedBytes = state.parts.reduce(function (sum, p) {
+                            var start = (p.partNumber - 1) * chunkSize;
+                            return sum + Math.min(chunkSize, fileSize - start);
+                        }, 0);
+                        totalParts = Math.ceil(fileSize / chunkSize);
+                        pending = [];
+                        for (n = 1; n <= totalParts; n++) {
+                            if (!completed[n]) {
+                                start = (n - 1) * chunkSize;
+                                pending.push({
+                                    partNumber: n,
+                                    blob: file.slice(start, Math.min(start + chunkSize, fileSize))
+                                });
+                            }
+                        }
+                        inFlight = {};
+                        report = function () {
+                            var loaded = completedBytes;
+                            Object.keys(inFlight).forEach(function (k) {
+                                loaded += inFlight[Number(k)];
+                            });
+                            onProgress({ loaded: loaded, total: fileSize });
+                        };
+                        _g.label = 8;
+                    case 8:
+                        _g.trys.push([8, 11, , 16]);
+                        return [4 /*yield*/, multipart_1.runWithConcurrency(pending, concurrency, function (item) { return __awaiter(_this, void 0, void 0, function () {
+                                var part;
+                                return __generator(this, function (_a) {
+                                    switch (_a.label) {
+                                        case 0: return [4 /*yield*/, multipart_1.uploadPart(getSignedUrl, objectName, state.uploadId, item.partNumber, item.blob, function (e) {
+                                                inFlight[item.partNumber] = e.loaded;
+                                                report();
+                                            })];
+                                        case 1:
+                                            part = _a.sent();
+                                            delete inFlight[item.partNumber];
+                                            completedBytes += item.blob.size;
+                                            state.parts.push(part);
+                                            multipart_1.saveResumeState(storageKey, state);
+                                            report();
+                                            return [2 /*return*/];
+                                    }
+                                });
+                            }); })];
+                    case 9:
+                        _g.sent();
+                        return [4 /*yield*/, multipart_1.completeMultipart(getSignedUrl, objectName, state.uploadId, state.parts)];
+                    case 10:
+                        _g.sent();
+                        multipart_1.clearResumeState(storageKey);
+                        return [3 /*break*/, 16];
+                    case 11:
+                        e_2 = _g.sent();
+                        _g.label = 12;
+                    case 12:
+                        _g.trys.push([12, 14, , 15]);
+                        return [4 /*yield*/, multipart_1.abortMultipart(getSignedUrl, objectName, state.uploadId)];
+                    case 13:
+                        _g.sent();
+                        return [3 /*break*/, 15];
+                    case 14:
+                        abortError_1 = _g.sent();
+                        return [3 /*break*/, 15];
+                    case 15:
+                        multipart_1.clearResumeState(storageKey);
+                        return [2 /*return*/, Promise.reject({
+                                code: 400,
+                                data: "",
+                                message: (e_2 && e_2.message) || utils_1.getMessage2Xml(e_2),
+                                success: false
+                            })];
+                    case 16: return [2 /*return*/, {
+                            code: 200,
+                            data: objectName,
+                            message: "上传成功",
+                            success: true
+                        }];
+                }
+            });
+        });
     };
     return LingOssUpload;
 }());
@@ -1632,11 +1777,11 @@ exports.compressorImage = compressorImage;
  */
 exports.getMessage2Xml = function (data, message) {
     if (message === void 0) { message = "上传失败"; }
-    if (window.DOMParser) {
-        message =
-            new DOMParser()
-                .parseFromString(data, "text/xml")
-                .getElementsByTagName("Message")[0].textContent || message;
+    if (window.DOMParser && typeof data === "string") {
+        var nodes = new DOMParser()
+            .parseFromString(data, "text/xml")
+            .getElementsByTagName("Message");
+        message = (nodes.length && nodes[0].textContent) || message;
     }
     return message;
 };
@@ -2760,6 +2905,593 @@ exports.ajax = function (url, formData, onProgress) {
 
 }));
 
+
+/***/ }),
+/* 9 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __generator = (this && this.__generator) || function (thisArg, body) {
+    var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g;
+    return g = { next: verb(0), "throw": verb(1), "return": verb(2) }, typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
+    function verb(n) { return function (v) { return step([n, v]); }; }
+    function step(op) {
+        if (f) throw new TypeError("Generator is already executing.");
+        while (_) try {
+            if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
+            if (y = 0, t) op = [op[0] & 2, t.value];
+            switch (op[0]) {
+                case 0: case 1: t = op; break;
+                case 4: _.label++; return { value: op[1], done: false };
+                case 5: _.label++; y = op[1]; op = [0]; continue;
+                case 7: op = _.ops.pop(); _.trys.pop(); continue;
+                default:
+                    if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
+                    if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
+                    if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
+                    if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
+                    if (t[2]) _.ops.pop();
+                    _.trys.pop(); continue;
+            }
+            op = body.call(thisArg, _);
+        } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
+        if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
+    }
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.clearResumeState = exports.loadResumeState = exports.saveResumeState = exports.getStorageKey = exports.getFingerprint = exports.runWithConcurrency = exports.listParts = exports.abortMultipart = exports.completeMultipart = exports.uploadPart = exports.initiateMultipart = exports.request = void 0;
+var md5_1 = __importDefault(__webpack_require__(10));
+var STORAGE_PREFIX = "ling-oss-upload:";
+/**
+ * 通用 XHR 请求（浏览器端，用于分片上传各步骤）
+ */
+function request(method, url, body, onProgress, headers) {
+    return new Promise(function (resolve, reject) {
+        var xhr = new XMLHttpRequest();
+        xhr.open(method, url, true);
+        if (headers) {
+            Object.keys(headers).forEach(function (k) { return xhr.setRequestHeader(k, headers[k]); });
+        }
+        if (onProgress && xhr.upload) {
+            xhr.upload.onprogress = function (e) {
+                if (e.lengthComputable) {
+                    onProgress(e);
+                }
+            };
+        }
+        xhr.onload = function () {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                resolve({
+                    status: xhr.status,
+                    getHeader: function (name) { return xhr.getResponseHeader(name); },
+                    responseText: xhr.responseText
+                });
+            }
+            else {
+                reject(xhr.responseText);
+            }
+        };
+        xhr.onerror = function () { return reject(xhr.responseText); };
+        xhr.send(body);
+    });
+}
+exports.request = request;
+/**
+ * 从 XML 中提取指定标签的文本
+ */
+function getXmlTag(xml, tag) {
+    var doc = new DOMParser().parseFromString(xml, "text/xml");
+    var nodes = doc.getElementsByTagName(tag);
+    return nodes.length ? nodes[0].textContent || "" : "";
+}
+/**
+ * 组装 CompleteMultipartUpload 请求体
+ */
+function buildCompleteXml(parts) {
+    var sorted = parts
+        .slice()
+        .sort(function (a, b) { return a.partNumber - b.partNumber; })
+        .map(function (p) {
+        return "<Part><PartNumber>" + p.partNumber + "</PartNumber><ETag>" + p.etag + "</ETag></Part>";
+    })
+        .join("");
+    return "<CompleteMultipartUpload>" + sorted + "</CompleteMultipartUpload>";
+}
+/**
+ * 解析 ListParts 响应中的已传分片
+ */
+function parseListPartsXml(xml) {
+    var doc = new DOMParser().parseFromString(xml, "text/xml");
+    var nodes = doc.getElementsByTagName("Part");
+    var parts = [];
+    for (var i = 0; i < nodes.length; i++) {
+        var pn = nodes[i].getElementsByTagName("PartNumber")[0];
+        var et = nodes[i].getElementsByTagName("ETag")[0];
+        parts.push({
+            partNumber: Number(pn ? pn.textContent : 0),
+            etag: (et && et.textContent) || ""
+        });
+    }
+    return parts;
+}
+/**
+ * 初始化分片上传，返回 uploadId
+ */
+function initiateMultipart(getSignedUrl, objectKey) {
+    return __awaiter(this, void 0, void 0, function () {
+        var url, res, uploadId;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0: return [4 /*yield*/, getSignedUrl({ verb: "POST", objectKey: objectKey, action: "init" })];
+                case 1:
+                    url = _a.sent();
+                    return [4 /*yield*/, request("POST", url)];
+                case 2:
+                    res = _a.sent();
+                    uploadId = getXmlTag(res.responseText, "UploadId");
+                    if (!uploadId) {
+                        throw new Error("initiate multipart upload failed: no UploadId");
+                    }
+                    return [2 /*return*/, uploadId];
+            }
+        });
+    });
+}
+exports.initiateMultipart = initiateMultipart;
+/**
+ * 上传单个分片，返回该分片 ETag
+ */
+function uploadPart(getSignedUrl, objectKey, uploadId, partNumber, blob, onProgress) {
+    return __awaiter(this, void 0, void 0, function () {
+        var url, res;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0: return [4 /*yield*/, getSignedUrl({
+                        verb: "PUT",
+                        objectKey: objectKey,
+                        partNumber: partNumber,
+                        uploadId: uploadId,
+                        action: "part"
+                    })];
+                case 1:
+                    url = _a.sent();
+                    return [4 /*yield*/, request("PUT", url, blob, onProgress)];
+                case 2:
+                    res = _a.sent();
+                    return [2 /*return*/, { partNumber: partNumber, etag: res.getHeader("ETag") || "" }];
+            }
+        });
+    });
+}
+exports.uploadPart = uploadPart;
+/**
+ * 完成分片上传
+ */
+function completeMultipart(getSignedUrl, objectKey, uploadId, parts) {
+    return __awaiter(this, void 0, void 0, function () {
+        var url;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0: return [4 /*yield*/, getSignedUrl({
+                        verb: "POST",
+                        objectKey: objectKey,
+                        uploadId: uploadId,
+                        action: "complete"
+                    })];
+                case 1:
+                    url = _a.sent();
+                    return [4 /*yield*/, request("POST", url, buildCompleteXml(parts), undefined, {
+                            "Content-Type": "application/xml"
+                        })];
+                case 2:
+                    _a.sent();
+                    return [2 /*return*/];
+            }
+        });
+    });
+}
+exports.completeMultipart = completeMultipart;
+/**
+ * 中止分片上传
+ */
+function abortMultipart(getSignedUrl, objectKey, uploadId) {
+    return __awaiter(this, void 0, void 0, function () {
+        var url;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0: return [4 /*yield*/, getSignedUrl({
+                        verb: "DELETE",
+                        objectKey: objectKey,
+                        uploadId: uploadId,
+                        action: "abort"
+                    })];
+                case 1:
+                    url = _a.sent();
+                    return [4 /*yield*/, request("DELETE", url)];
+                case 2:
+                    _a.sent();
+                    return [2 /*return*/];
+            }
+        });
+    });
+}
+exports.abortMultipart = abortMultipart;
+/**
+ * 查询已传分片（用于断点续传对账）
+ */
+function listParts(getSignedUrl, objectKey, uploadId) {
+    return __awaiter(this, void 0, void 0, function () {
+        var url, res;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0: return [4 /*yield*/, getSignedUrl({
+                        verb: "GET",
+                        objectKey: objectKey,
+                        uploadId: uploadId,
+                        action: "listParts"
+                    })];
+                case 1:
+                    url = _a.sent();
+                    return [4 /*yield*/, request("GET", url)];
+                case 2:
+                    res = _a.sent();
+                    return [2 /*return*/, parseListPartsXml(res.responseText)];
+            }
+        });
+    });
+}
+exports.listParts = listParts;
+/**
+ * 并发执行队列：最多 concurrency 个任务在途
+ */
+function runWithConcurrency(items, concurrency, worker) {
+    return __awaiter(this, void 0, void 0, function () {
+        var index, runners;
+        var _this = this;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    index = 0;
+                    runners = Array.from({ length: Math.min(concurrency, items.length) }, function () { return __awaiter(_this, void 0, void 0, function () {
+                        var i;
+                        return __generator(this, function (_a) {
+                            switch (_a.label) {
+                                case 0:
+                                    if (!(index < items.length)) return [3 /*break*/, 2];
+                                    i = index++;
+                                    return [4 /*yield*/, worker(items[i])];
+                                case 1:
+                                    _a.sent();
+                                    return [3 /*break*/, 0];
+                                case 2: return [2 /*return*/];
+                            }
+                        });
+                    }); });
+                    return [4 /*yield*/, Promise.all(runners)];
+                case 1:
+                    _a.sent();
+                    return [2 /*return*/];
+            }
+        });
+    });
+}
+exports.runWithConcurrency = runWithConcurrency;
+/**
+ * 计算文件指纹（用于续传状态 key）
+ */
+function getFingerprint(file) {
+    var raw = file.name + ":" + file.size + ":" + file.lastModified;
+    return md5_1.default(raw).toString();
+}
+exports.getFingerprint = getFingerprint;
+/**
+ * 续传状态存储 key
+ */
+function getStorageKey(resumeKey, file) {
+    return STORAGE_PREFIX + (resumeKey || getFingerprint(file));
+}
+exports.getStorageKey = getStorageKey;
+function saveResumeState(key, state) {
+    localStorage.setItem(key, JSON.stringify(state));
+}
+exports.saveResumeState = saveResumeState;
+function loadResumeState(key) {
+    var raw = localStorage.getItem(key);
+    if (!raw) {
+        return null;
+    }
+    try {
+        return JSON.parse(raw);
+    }
+    catch (e) {
+        return null;
+    }
+}
+exports.loadResumeState = loadResumeState;
+function clearResumeState(key) {
+    localStorage.removeItem(key);
+}
+exports.clearResumeState = clearResumeState;
+
+
+/***/ }),
+/* 10 */
+/***/ (function(module, exports, __webpack_require__) {
+
+;(function (root, factory) {
+	if (true) {
+		// CommonJS
+		module.exports = exports = factory(__webpack_require__(2));
+	}
+	else {}
+}(this, function (CryptoJS) {
+
+	(function (Math) {
+	    // Shortcuts
+	    var C = CryptoJS;
+	    var C_lib = C.lib;
+	    var WordArray = C_lib.WordArray;
+	    var Hasher = C_lib.Hasher;
+	    var C_algo = C.algo;
+
+	    // Constants table
+	    var T = [];
+
+	    // Compute constants
+	    (function () {
+	        for (var i = 0; i < 64; i++) {
+	            T[i] = (Math.abs(Math.sin(i + 1)) * 0x100000000) | 0;
+	        }
+	    }());
+
+	    /**
+	     * MD5 hash algorithm.
+	     */
+	    var MD5 = C_algo.MD5 = Hasher.extend({
+	        _doReset: function () {
+	            this._hash = new WordArray.init([
+	                0x67452301, 0xefcdab89,
+	                0x98badcfe, 0x10325476
+	            ]);
+	        },
+
+	        _doProcessBlock: function (M, offset) {
+	            // Swap endian
+	            for (var i = 0; i < 16; i++) {
+	                // Shortcuts
+	                var offset_i = offset + i;
+	                var M_offset_i = M[offset_i];
+
+	                M[offset_i] = (
+	                    (((M_offset_i << 8)  | (M_offset_i >>> 24)) & 0x00ff00ff) |
+	                    (((M_offset_i << 24) | (M_offset_i >>> 8))  & 0xff00ff00)
+	                );
+	            }
+
+	            // Shortcuts
+	            var H = this._hash.words;
+
+	            var M_offset_0  = M[offset + 0];
+	            var M_offset_1  = M[offset + 1];
+	            var M_offset_2  = M[offset + 2];
+	            var M_offset_3  = M[offset + 3];
+	            var M_offset_4  = M[offset + 4];
+	            var M_offset_5  = M[offset + 5];
+	            var M_offset_6  = M[offset + 6];
+	            var M_offset_7  = M[offset + 7];
+	            var M_offset_8  = M[offset + 8];
+	            var M_offset_9  = M[offset + 9];
+	            var M_offset_10 = M[offset + 10];
+	            var M_offset_11 = M[offset + 11];
+	            var M_offset_12 = M[offset + 12];
+	            var M_offset_13 = M[offset + 13];
+	            var M_offset_14 = M[offset + 14];
+	            var M_offset_15 = M[offset + 15];
+
+	            // Working varialbes
+	            var a = H[0];
+	            var b = H[1];
+	            var c = H[2];
+	            var d = H[3];
+
+	            // Computation
+	            a = FF(a, b, c, d, M_offset_0,  7,  T[0]);
+	            d = FF(d, a, b, c, M_offset_1,  12, T[1]);
+	            c = FF(c, d, a, b, M_offset_2,  17, T[2]);
+	            b = FF(b, c, d, a, M_offset_3,  22, T[3]);
+	            a = FF(a, b, c, d, M_offset_4,  7,  T[4]);
+	            d = FF(d, a, b, c, M_offset_5,  12, T[5]);
+	            c = FF(c, d, a, b, M_offset_6,  17, T[6]);
+	            b = FF(b, c, d, a, M_offset_7,  22, T[7]);
+	            a = FF(a, b, c, d, M_offset_8,  7,  T[8]);
+	            d = FF(d, a, b, c, M_offset_9,  12, T[9]);
+	            c = FF(c, d, a, b, M_offset_10, 17, T[10]);
+	            b = FF(b, c, d, a, M_offset_11, 22, T[11]);
+	            a = FF(a, b, c, d, M_offset_12, 7,  T[12]);
+	            d = FF(d, a, b, c, M_offset_13, 12, T[13]);
+	            c = FF(c, d, a, b, M_offset_14, 17, T[14]);
+	            b = FF(b, c, d, a, M_offset_15, 22, T[15]);
+
+	            a = GG(a, b, c, d, M_offset_1,  5,  T[16]);
+	            d = GG(d, a, b, c, M_offset_6,  9,  T[17]);
+	            c = GG(c, d, a, b, M_offset_11, 14, T[18]);
+	            b = GG(b, c, d, a, M_offset_0,  20, T[19]);
+	            a = GG(a, b, c, d, M_offset_5,  5,  T[20]);
+	            d = GG(d, a, b, c, M_offset_10, 9,  T[21]);
+	            c = GG(c, d, a, b, M_offset_15, 14, T[22]);
+	            b = GG(b, c, d, a, M_offset_4,  20, T[23]);
+	            a = GG(a, b, c, d, M_offset_9,  5,  T[24]);
+	            d = GG(d, a, b, c, M_offset_14, 9,  T[25]);
+	            c = GG(c, d, a, b, M_offset_3,  14, T[26]);
+	            b = GG(b, c, d, a, M_offset_8,  20, T[27]);
+	            a = GG(a, b, c, d, M_offset_13, 5,  T[28]);
+	            d = GG(d, a, b, c, M_offset_2,  9,  T[29]);
+	            c = GG(c, d, a, b, M_offset_7,  14, T[30]);
+	            b = GG(b, c, d, a, M_offset_12, 20, T[31]);
+
+	            a = HH(a, b, c, d, M_offset_5,  4,  T[32]);
+	            d = HH(d, a, b, c, M_offset_8,  11, T[33]);
+	            c = HH(c, d, a, b, M_offset_11, 16, T[34]);
+	            b = HH(b, c, d, a, M_offset_14, 23, T[35]);
+	            a = HH(a, b, c, d, M_offset_1,  4,  T[36]);
+	            d = HH(d, a, b, c, M_offset_4,  11, T[37]);
+	            c = HH(c, d, a, b, M_offset_7,  16, T[38]);
+	            b = HH(b, c, d, a, M_offset_10, 23, T[39]);
+	            a = HH(a, b, c, d, M_offset_13, 4,  T[40]);
+	            d = HH(d, a, b, c, M_offset_0,  11, T[41]);
+	            c = HH(c, d, a, b, M_offset_3,  16, T[42]);
+	            b = HH(b, c, d, a, M_offset_6,  23, T[43]);
+	            a = HH(a, b, c, d, M_offset_9,  4,  T[44]);
+	            d = HH(d, a, b, c, M_offset_12, 11, T[45]);
+	            c = HH(c, d, a, b, M_offset_15, 16, T[46]);
+	            b = HH(b, c, d, a, M_offset_2,  23, T[47]);
+
+	            a = II(a, b, c, d, M_offset_0,  6,  T[48]);
+	            d = II(d, a, b, c, M_offset_7,  10, T[49]);
+	            c = II(c, d, a, b, M_offset_14, 15, T[50]);
+	            b = II(b, c, d, a, M_offset_5,  21, T[51]);
+	            a = II(a, b, c, d, M_offset_12, 6,  T[52]);
+	            d = II(d, a, b, c, M_offset_3,  10, T[53]);
+	            c = II(c, d, a, b, M_offset_10, 15, T[54]);
+	            b = II(b, c, d, a, M_offset_1,  21, T[55]);
+	            a = II(a, b, c, d, M_offset_8,  6,  T[56]);
+	            d = II(d, a, b, c, M_offset_15, 10, T[57]);
+	            c = II(c, d, a, b, M_offset_6,  15, T[58]);
+	            b = II(b, c, d, a, M_offset_13, 21, T[59]);
+	            a = II(a, b, c, d, M_offset_4,  6,  T[60]);
+	            d = II(d, a, b, c, M_offset_11, 10, T[61]);
+	            c = II(c, d, a, b, M_offset_2,  15, T[62]);
+	            b = II(b, c, d, a, M_offset_9,  21, T[63]);
+
+	            // Intermediate hash value
+	            H[0] = (H[0] + a) | 0;
+	            H[1] = (H[1] + b) | 0;
+	            H[2] = (H[2] + c) | 0;
+	            H[3] = (H[3] + d) | 0;
+	        },
+
+	        _doFinalize: function () {
+	            // Shortcuts
+	            var data = this._data;
+	            var dataWords = data.words;
+
+	            var nBitsTotal = this._nDataBytes * 8;
+	            var nBitsLeft = data.sigBytes * 8;
+
+	            // Add padding
+	            dataWords[nBitsLeft >>> 5] |= 0x80 << (24 - nBitsLeft % 32);
+
+	            var nBitsTotalH = Math.floor(nBitsTotal / 0x100000000);
+	            var nBitsTotalL = nBitsTotal;
+	            dataWords[(((nBitsLeft + 64) >>> 9) << 4) + 15] = (
+	                (((nBitsTotalH << 8)  | (nBitsTotalH >>> 24)) & 0x00ff00ff) |
+	                (((nBitsTotalH << 24) | (nBitsTotalH >>> 8))  & 0xff00ff00)
+	            );
+	            dataWords[(((nBitsLeft + 64) >>> 9) << 4) + 14] = (
+	                (((nBitsTotalL << 8)  | (nBitsTotalL >>> 24)) & 0x00ff00ff) |
+	                (((nBitsTotalL << 24) | (nBitsTotalL >>> 8))  & 0xff00ff00)
+	            );
+
+	            data.sigBytes = (dataWords.length + 1) * 4;
+
+	            // Hash final blocks
+	            this._process();
+
+	            // Shortcuts
+	            var hash = this._hash;
+	            var H = hash.words;
+
+	            // Swap endian
+	            for (var i = 0; i < 4; i++) {
+	                // Shortcut
+	                var H_i = H[i];
+
+	                H[i] = (((H_i << 8)  | (H_i >>> 24)) & 0x00ff00ff) |
+	                       (((H_i << 24) | (H_i >>> 8))  & 0xff00ff00);
+	            }
+
+	            // Return final computed hash
+	            return hash;
+	        },
+
+	        clone: function () {
+	            var clone = Hasher.clone.call(this);
+	            clone._hash = this._hash.clone();
+
+	            return clone;
+	        }
+	    });
+
+	    function FF(a, b, c, d, x, s, t) {
+	        var n = a + ((b & c) | (~b & d)) + x + t;
+	        return ((n << s) | (n >>> (32 - s))) + b;
+	    }
+
+	    function GG(a, b, c, d, x, s, t) {
+	        var n = a + ((b & d) | (c & ~d)) + x + t;
+	        return ((n << s) | (n >>> (32 - s))) + b;
+	    }
+
+	    function HH(a, b, c, d, x, s, t) {
+	        var n = a + (b ^ c ^ d) + x + t;
+	        return ((n << s) | (n >>> (32 - s))) + b;
+	    }
+
+	    function II(a, b, c, d, x, s, t) {
+	        var n = a + (c ^ (b | ~d)) + x + t;
+	        return ((n << s) | (n >>> (32 - s))) + b;
+	    }
+
+	    /**
+	     * Shortcut function to the hasher's object interface.
+	     *
+	     * @param {WordArray|string} message The message to hash.
+	     *
+	     * @return {WordArray} The hash.
+	     *
+	     * @static
+	     *
+	     * @example
+	     *
+	     *     var hash = CryptoJS.MD5('message');
+	     *     var hash = CryptoJS.MD5(wordArray);
+	     */
+	    C.MD5 = Hasher._createHelper(MD5);
+
+	    /**
+	     * Shortcut function to the HMAC's object interface.
+	     *
+	     * @param {WordArray|string} message The message to hash.
+	     * @param {WordArray|string} key The secret key.
+	     *
+	     * @return {WordArray} The HMAC.
+	     *
+	     * @static
+	     *
+	     * @example
+	     *
+	     *     var hmac = CryptoJS.HmacMD5(message, key);
+	     */
+	    C.HmacMD5 = Hasher._createHmacHelper(MD5);
+	}(Math));
+
+
+	return CryptoJS.MD5;
+
+}));
 
 /***/ })
 /******/ ])["default"];

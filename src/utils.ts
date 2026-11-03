@@ -31,11 +31,11 @@ export function compressorImage(
  * @param {string} message 错误信息
  */
 export const getMessage2Xml = (data: string, message = "上传失败") => {
-  if (window.DOMParser) {
-    message =
-      new DOMParser()
-        .parseFromString(data, "text/xml")
-        .getElementsByTagName("Message")[0].textContent || message;
+  if (window.DOMParser && typeof data === "string") {
+    const nodes = new DOMParser()
+      .parseFromString(data, "text/xml")
+      .getElementsByTagName("Message");
+    message = (nodes.length && nodes[0].textContent) || message;
   }
 
   return message;
