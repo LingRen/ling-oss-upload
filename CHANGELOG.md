@@ -4,7 +4,7 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased]
+## [2.6.0] - 2026-11-04
 
 ### Added
 - `uploadBySts()`：通过 `getStsToken` 获取临时凭证后一次性直传（不分片），兼容阿里云 SDK 的 PascalCase 字段
