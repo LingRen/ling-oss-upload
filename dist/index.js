@@ -136,6 +136,17 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
         if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
     }
 };
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -269,6 +280,9 @@ var LingOssUpload = /** @class */ (function () {
                         if (!this.ossAccessId || !this.ossAccessKey) {
                             throw new Error("check oss accessId || accessKey");
                         }
+                        if (this.ossAccessId.indexOf("STS.") === 0 && !this.ossInfo.securityToken) {
+                            throw new Error("STS AccessId 需要同时提供 securityToken");
+                        }
                         fileName = file.name;
                         fileSize = file.size;
                         fileType = file.type;
@@ -315,10 +329,11 @@ var LingOssUpload = /** @class */ (function () {
                         formData.append("OSSAccessKeyId", this.ossAccessId);
                         formData.append("success_action_status", "200");
                         formData.append("signature", this.getSignature(this.ossAccessKey, policy));
-                        formData.append("file", file);
+                        // OSS PostObject 要求 file 必须是最后一个字段，STS token 必须放在 file 之前
                         if (this.ossInfo.securityToken) {
                             formData.append("x-oss-security-token", this.ossInfo.securityToken);
                         }
+                        formData.append("file", file);
                         return [2 /*return*/, new Promise(function (resolve, reject) {
                                 uploadFile(host, formData, onProgress)
                                     .then(function () {
@@ -352,6 +367,9 @@ var LingOssUpload = /** @class */ (function () {
         var dirName = _a.dirName, _b = _a.limitSize, limitSize = _b === void 0 ? 0 : _b, _c = _a.selfName, selfName = _c === void 0 ? false : _c;
         if (!this.ossAccessId || !this.ossAccessKey) {
             throw new Error("check oss accessId || accessKey");
+        }
+        if (this.ossAccessId.indexOf("STS.") === 0 && !this.ossInfo.securityToken) {
+            throw new Error("STS AccessId 需要同时提供 securityToken");
         }
         // gen random file name
         var fileName = this.getCalculateObjectName("", selfName);
@@ -399,6 +417,41 @@ var LingOssUpload = /** @class */ (function () {
         });
     };
     /**
+     * STS 直传（不分片）：通过 getStsToken 回调获取临时凭证，
+     * 复用 upload() 的 POST 表单方式一次性上传整个文件。
+     * @param {UploadByStsOptions} options 配置项
+     */
+    LingOssUpload.prototype.uploadBySts = function (options) {
+        return __awaiter(this, void 0, void 0, function () {
+            var getStsToken, uploadOptions, token, accessId, accessKey, securityToken, uploader;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0:
+                        getStsToken = options.getStsToken, uploadOptions = __rest(options, ["getStsToken"]);
+                        return [4 /*yield*/, getStsToken()];
+                    case 1:
+                        token = _a.sent();
+                        accessId = token && (token.accessId || token.AccessKeyId || token.accessKeyId);
+                        accessKey = token &&
+                            (token.accessKey || token.AccessKeySecret || token.accessKeySecret);
+                        securityToken = token &&
+                            (token.securityToken ||
+                                token.SecurityToken ||
+                                token.security_token ||
+                                token.token);
+                        if (!accessId || !accessKey) {
+                            throw new Error("check sts accessId || accessKey");
+                        }
+                        if (String(accessId).indexOf("STS.") === 0 && !securityToken) {
+                            throw new Error("STS AccessId 需要同时提供 securityToken");
+                        }
+                        uploader = new LingOssUpload({ accessId: accessId, accessKey: accessKey, securityToken: securityToken }, this.options);
+                        return [2 /*return*/, uploader.upload(uploadOptions)];
+                }
+            });
+        });
+    };
+    /**
      * 大文件分片上传（支持断点续传）
      * 通过 getSignedUrl 回调获取签名 URL，浏览器不持有密钥
      * @param {MultipartUploadOptions} options 配置项
@@ -436,22 +489,25 @@ var LingOssUpload = /** @class */ (function () {
                         multipart_1.saveResumeState(storageKey, state);
                         _g.label = 3;
                     case 3:
-                        _g.trys.push([3, 5, , 7]);
-                        return [4 /*yield*/, multipart_1.listParts(getSignedUrl, objectName, state.uploadId)];
+                        if (!(state.parts.length > 0)) return [3 /*break*/, 8];
+                        _g.label = 4;
                     case 4:
+                        _g.trys.push([4, 6, , 8]);
+                        return [4 /*yield*/, multipart_1.listParts(getSignedUrl, objectName, state.uploadId)];
+                    case 5:
                         serverParts = _g.sent();
                         state.parts = serverParts;
                         multipart_1.saveResumeState(storageKey, state);
-                        return [3 /*break*/, 7];
-                    case 5:
+                        return [3 /*break*/, 8];
+                    case 6:
                         e_1 = _g.sent();
                         return [4 /*yield*/, multipart_1.initiateMultipart(getSignedUrl, objectName)];
-                    case 6:
+                    case 7:
                         uploadId = _g.sent();
                         state = { objectKey: objectName, uploadId: uploadId, chunkSize: chunkSize, parts: [] };
                         multipart_1.saveResumeState(storageKey, state);
-                        return [3 /*break*/, 7];
-                    case 7:
+                        return [3 /*break*/, 8];
+                    case 8:
                         completed = {};
                         state.parts.forEach(function (p) {
                             completed[p.partNumber] = true;
@@ -479,9 +535,9 @@ var LingOssUpload = /** @class */ (function () {
                             });
                             onProgress({ loaded: loaded, total: fileSize });
                         };
-                        _g.label = 8;
-                    case 8:
-                        _g.trys.push([8, 11, , 16]);
+                        _g.label = 9;
+                    case 9:
+                        _g.trys.push([9, 12, , 17]);
                         return [4 /*yield*/, multipart_1.runWithConcurrency(pending, concurrency, function (item) { return __awaiter(_this, void 0, void 0, function () {
                                 var part;
                                 return __generator(this, function (_a) {
@@ -501,26 +557,26 @@ var LingOssUpload = /** @class */ (function () {
                                     }
                                 });
                             }); })];
-                    case 9:
-                        _g.sent();
-                        return [4 /*yield*/, multipart_1.completeMultipart(getSignedUrl, objectName, state.uploadId, state.parts)];
                     case 10:
                         _g.sent();
-                        multipart_1.clearResumeState(storageKey);
-                        return [3 /*break*/, 16];
+                        return [4 /*yield*/, multipart_1.completeMultipart(getSignedUrl, objectName, state.uploadId, state.parts)];
                     case 11:
-                        e_2 = _g.sent();
-                        _g.label = 12;
-                    case 12:
-                        _g.trys.push([12, 14, , 15]);
-                        return [4 /*yield*/, multipart_1.abortMultipart(getSignedUrl, objectName, state.uploadId)];
-                    case 13:
                         _g.sent();
-                        return [3 /*break*/, 15];
+                        multipart_1.clearResumeState(storageKey);
+                        return [3 /*break*/, 17];
+                    case 12:
+                        e_2 = _g.sent();
+                        _g.label = 13;
+                    case 13:
+                        _g.trys.push([13, 15, , 16]);
+                        return [4 /*yield*/, multipart_1.abortMultipart(getSignedUrl, objectName, state.uploadId)];
                     case 14:
-                        abortError_1 = _g.sent();
-                        return [3 /*break*/, 15];
+                        _g.sent();
+                        return [3 /*break*/, 16];
                     case 15:
+                        abortError_1 = _g.sent();
+                        return [3 /*break*/, 16];
+                    case 16:
                         multipart_1.clearResumeState(storageKey);
                         return [2 /*return*/, Promise.reject({
                                 code: 400,
@@ -528,7 +584,7 @@ var LingOssUpload = /** @class */ (function () {
                                 message: (e_2 && e_2.message) || utils_1.getMessage2Xml(e_2),
                                 success: false
                             })];
-                    case 16: return [2 /*return*/, {
+                    case 17: return [2 /*return*/, {
                             code: 200,
                             data: objectName,
                             message: "上传成功",
@@ -3086,16 +3142,23 @@ exports.initiateMultipart = initiateMultipart;
  */
 function uploadPart(getSignedUrl, objectKey, uploadId, partNumber, blob, onProgress) {
     return __awaiter(this, void 0, void 0, function () {
-        var url, res;
+        var payload, url, res;
         return __generator(this, function (_a) {
             switch (_a.label) {
-                case 0: return [4 /*yield*/, getSignedUrl({
+                case 0:
+                    payload = {
                         verb: "PUT",
                         objectKey: objectKey,
                         partNumber: partNumber,
                         uploadId: uploadId,
                         action: "part"
-                    })];
+                    };
+                    // 浏览器发送 Blob 时会自动带上 blob.type 作为 Content-Type,
+                    // 签名必须包含它, 否则 OSS 校验签名会不一致
+                    if (blob.type) {
+                        payload.contentType = blob.type;
+                    }
+                    return [4 /*yield*/, getSignedUrl(payload)];
                 case 1:
                     url = _a.sent();
                     return [4 /*yield*/, request("PUT", url, blob, onProgress)];
@@ -3119,7 +3182,8 @@ function completeMultipart(getSignedUrl, objectKey, uploadId, parts) {
                         verb: "POST",
                         objectKey: objectKey,
                         uploadId: uploadId,
-                        action: "complete"
+                        action: "complete",
+                        contentType: "application/xml"
                     })];
                 case 1:
                     url = _a.sent();

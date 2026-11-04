@@ -54,6 +54,7 @@ export interface SignedUrlRequest {
   partNumber?: number;
   uploadId?: string;
   action?: SignedUrlAction;
+  contentType?: string;
 }
 
 export type GetSignedUrl = (req: SignedUrlRequest) => Promise<string>;
@@ -102,12 +103,26 @@ export interface MiniUploadBySignerOptions {
   selfName?: boolean;
 }
 
+export interface StsToken {
+  accessId: string;
+  accessKey: string;
+  securityToken?: string;
+  expiration?: string;
+}
+
+export type GetStsToken = () => Promise<StsToken>;
+
+export interface UploadByStsOptions extends UploadType {
+  getStsToken: GetStsToken;
+}
+
 declare class LingOssUpload {
   constructor(ossInfo?: OssInfoType, options?: OptionsType);
 
   upload(uploadType: UploadType): Promise<OutType>;
   createMiniUploadInfo(miniUploadType: MiniUploadType): MiniOutType;
   createMiniUploadInfoBySigner(options: MiniUploadBySignerOptions): Promise<MiniOutType>;
+  uploadBySts(options: UploadByStsOptions): Promise<OutType>;
   uploadLarge(options: MultipartUploadOptions): Promise<OutType>;
 }
 

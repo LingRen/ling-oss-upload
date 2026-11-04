@@ -13,6 +13,7 @@
     "download": "./bin/upload.js --meta --download -d=./dist -b=oss://cdn-didano/ling-test/",
     "build": "webpack",
     "serve": "webpack --config webpack.config.dev.js --output-path ./test && vite --root ./test",
+    "demo": "NODE_OPTIONS=--openssl-legacy-provider webpack --config webpack.config.dev.js --output-path ./test && node server/demo-server.js",
     "test": "tsc --outDir .test-dist && jest",
     "sts": "node server/sts-server.js"
   },
@@ -62,7 +63,7 @@
     "index.js",
     "index.d.ts",
     "dist/",
-    "bin/",
+    "bin/upload.js",
     "CHANGELOG.md"
   ]
 }

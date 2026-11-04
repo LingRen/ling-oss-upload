@@ -18,7 +18,8 @@ import {
   MiniUploadType,
   OssInfoType,
   MultipartUploadOptions,
-  MiniUploadBySignerOptions
+  MiniUploadBySignerOptions,
+  UploadByStsOptions
 } from "./interface";
 
 import {
@@ -165,6 +166,9 @@ class LingOssUpload {
     if (!this.ossAccessId || !this.ossAccessKey) {
       throw new Error("check oss accessId || accessKey");
     }
+    if (this.ossAccessId.indexOf("STS.") === 0 && !this.ossInfo.securityToken) {
+      throw new Error("STS AccessId 需要同时提供 securityToken");
+    }
     // 获取文件信息，
     const fileName = file.name;
     const fileSize = file.size;
@@ -214,10 +218,11 @@ class LingOssUpload {
     formData.append("OSSAccessKeyId", this.ossAccessId);
     formData.append("success_action_status", "200");
     formData.append("signature", this.getSignature(this.ossAccessKey, policy));
-    formData.append("file", file);
+    // OSS PostObject 要求 file 必须是最后一个字段，STS token 必须放在 file 之前
     if (this.ossInfo.securityToken) {
       formData.append("x-oss-security-token", this.ossInfo.securityToken);
     }
+    formData.append("file", file);
 
     return new Promise((resolve, reject) => {
       uploadFile(host, formData, onProgress)
@@ -252,6 +257,9 @@ class LingOssUpload {
   }: MiniUploadType): MiniOutType {
     if (!this.ossAccessId || !this.ossAccessKey) {
       throw new Error("check oss accessId || accessKey");
+    }
+    if (this.ossAccessId.indexOf("STS.") === 0 && !this.ossInfo.securityToken) {
+      throw new Error("STS AccessId 需要同时提供 securityToken");
     }
     // gen random file name
     const fileName = this.getCalculateObjectName("", selfName);
@@ -298,6 +306,42 @@ class LingOssUpload {
     };
   }
   /**
+   * STS 直传（不分片）：通过 getStsToken 回调获取临时凭证，
+   * 复用 upload() 的 POST 表单方式一次性上传整个文件。
+   * @param {UploadByStsOptions} options 配置项
+   */
+  async uploadBySts(options: UploadByStsOptions): Promise<OutType> {
+    const { getStsToken, ...uploadOptions } = options;
+    const token: any = await getStsToken();
+
+    // 兼容阿里云 SDK 的 PascalCase 返回（AccessKeyId / AccessKeySecret / SecurityToken）
+    const accessId =
+      token && (token.accessId || token.AccessKeyId || token.accessKeyId);
+    const accessKey =
+      token &&
+      (token.accessKey || token.AccessKeySecret || token.accessKeySecret);
+    const securityToken =
+      token &&
+      (token.securityToken ||
+        token.SecurityToken ||
+        token.security_token ||
+        token.token);
+
+    if (!accessId || !accessKey) {
+      throw new Error("check sts accessId || accessKey");
+    }
+    if (String(accessId).indexOf("STS.") === 0 && !securityToken) {
+      throw new Error("STS AccessId 需要同时提供 securityToken");
+    }
+
+    const uploader = new LingOssUpload(
+      { accessId, accessKey, securityToken },
+      this.options
+    );
+
+    return uploader.upload(uploadOptions);
+  }
+  /**
    * 大文件分片上传（支持断点续传）
    * 通过 getSignedUrl 回调获取签名 URL，浏览器不持有密钥
    * @param {MultipartUploadOptions} options 配置项
@@ -336,19 +380,22 @@ class LingOssUpload {
       saveResumeState(storageKey, state);
     }
 
-    // 与服务端对账已传分片（uploadId 可能已被回收）
-    try {
-      const serverParts = await listParts(
-        getSignedUrl,
-        objectName,
-        state.uploadId
-      );
-      state.parts = serverParts;
-      saveResumeState(storageKey, state);
-    } catch (e) {
-      const uploadId = await initiateMultipart(getSignedUrl, objectName);
-      state = { objectKey: objectName, uploadId, chunkSize, parts: [] };
-      saveResumeState(storageKey, state);
+    // 仅续传时与服务端对账已传分片（uploadId 可能已被回收）。
+    // 全新上传没有已传分片，跳过 ListParts：少一次请求，也不需要 oss:ListParts 权限。
+    if (state.parts.length > 0) {
+      try {
+        const serverParts = await listParts(
+          getSignedUrl,
+          objectName,
+          state.uploadId
+        );
+        state.parts = serverParts;
+        saveResumeState(storageKey, state);
+      } catch (e) {
+        const uploadId = await initiateMultipart(getSignedUrl, objectName);
+        state = { objectKey: objectName, uploadId, chunkSize, parts: [] };
+        saveResumeState(storageKey, state);
+      }
     }
 
     // 计算剩余待传分片与已完成字节

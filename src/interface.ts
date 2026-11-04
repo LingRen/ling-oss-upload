@@ -54,6 +54,8 @@ export interface SignedUrlRequest {
   partNumber?: number;
   uploadId?: string;
   action?: SignedUrlAction;
+  /** 请求会携带的 Content-Type, 签名时必须一并纳入(如分片的 blob.type、complete 的 application/xml) */
+  contentType?: string;
 }
 
 export type GetSignedUrl = (req: SignedUrlRequest) => Promise<string>;
@@ -100,4 +102,19 @@ export interface MiniUploadBySignerOptions {
   getMiniUploadInfo: GetMiniUploadInfo;
   limitSize?: number;
   selfName?: boolean;
+}
+
+/** STS 临时凭证 */
+export interface StsToken {
+  accessId: string;
+  accessKey: string;
+  securityToken?: string;
+  expiration?: string;
+}
+
+export type GetStsToken = () => Promise<StsToken>;
+
+export interface UploadByStsOptions extends UploadType {
+  /** 获取 STS 临时凭证的回调 */
+  getStsToken: GetStsToken;
 }

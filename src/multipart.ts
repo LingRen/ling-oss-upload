@@ -1,6 +1,6 @@
 import MD5 from "crypto-js/md5";
 
-import { PartInfo, ResumeState, GetSignedUrl } from "./interface";
+import { PartInfo, ResumeState, GetSignedUrl, SignedUrlRequest } from "./interface";
 
 const STORAGE_PREFIX = "ling-oss-upload:";
 
@@ -118,13 +118,19 @@ export async function uploadPart(
   blob: Blob,
   onProgress?: (e: ProgressEvent) => void
 ): Promise<PartInfo> {
-  const url = await getSignedUrl({
+  const payload: SignedUrlRequest = {
     verb: "PUT",
     objectKey,
     partNumber,
     uploadId,
     action: "part"
-  });
+  };
+  // 浏览器发送 Blob 时会自动带上 blob.type 作为 Content-Type,
+  // 签名必须包含它, 否则 OSS 校验签名会不一致
+  if (blob.type) {
+    payload.contentType = blob.type;
+  }
+  const url = await getSignedUrl(payload);
   const res = await request("PUT", url, blob, onProgress);
   return { partNumber, etag: res.getHeader("ETag") || "" };
 }
@@ -142,7 +148,8 @@ export async function completeMultipart(
     verb: "POST",
     objectKey,
     uploadId,
-    action: "complete"
+    action: "complete",
+    contentType: "application/xml"
   });
   await request("POST", url, buildCompleteXml(parts), undefined, {
     "Content-Type": "application/xml"

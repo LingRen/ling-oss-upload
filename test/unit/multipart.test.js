@@ -1,6 +1,6 @@
 const { installFakeXhr, parseUrl, makeGetSignedUrl } = require("./fakeXhr");
 const LingOssUpload = require("../../.test-dist/index.js").default;
-const { runWithConcurrency } = require("../../.test-dist/multipart.js");
+const { runWithConcurrency, uploadPart } = require("../../.test-dist/multipart.js");
 
 const MB = 1024 * 1024;
 
@@ -62,7 +62,29 @@ describe("uploadLarge 分片上传", () => {
     expect(actions.filter((a) => a === "part").length).toBe(3);
     expect(actions).toContain("init");
     expect(actions).toContain("complete");
-    expect(actions).toContain("listParts");
+    // 全新上传没有已传分片，不应调用 ListParts(避免 oss:ListParts 权限依赖)
+    expect(actions).not.toContain("listParts");
+
+    // complete 请求带 application/xml, 签名必须一致, 否则 OSS 报 SignatureDoesNotMatch
+    expect(calls.find((c) => c.action === "complete").contentType).toBe(
+      "application/xml"
+    );
+  });
+
+  test("5.6 分片签名携带 Blob 的 Content-Type", async () => {
+    installFakeXhr(() => ({ status: 200, headers: { ETag: '"etag-1"' } }));
+    const calls = [];
+    const blob = new Blob(["hello"], { type: "image/png" });
+
+    await uploadPart(
+      makeGetSignedUrl(calls),
+      "formal/test/a.png",
+      "upload-1",
+      1,
+      blob
+    );
+
+    expect(calls[0].contentType).toBe("image/png");
   });
 
   test("5.2 断点续传: 复用 uploadId, 只补传剩余分片", async () => {

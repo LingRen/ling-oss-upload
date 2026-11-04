@@ -23,3 +23,6 @@ yarn-error.log*
 
 # test build output
 .test-dist/
+
+# ossutil binaries are downloaded on demand
+/bin/upload/ossutil*

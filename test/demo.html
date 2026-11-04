@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ling-oss-upload Demo</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 32px 20px 80px;
+        font: 14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        background: #f5f6f8;
+        color: #1f2328;
+      }
+      main { max-width: 880px; margin: 0 auto; }
+      h1 { font-size: 22px; margin: 0 0 4px; }
+      h3 { font-size: 14px; margin: 20px 0 8px; color: #111827; }
+      .sub { color: #6b7280; margin: 0 0 24px; }
+      section {
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 16px;
+      }
+      h2 { font-size: 16px; margin: 0 0 4px; }
+      .hint { color: #6b7280; font-size: 13px; margin: 0 0 16px; }
+      .hint.ok-text { color: #047857; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+      label { display: block; font-size: 12px; color: #4b5563; margin-bottom: 4px; }
+      input[type="text"], input[type="number"], input[type="password"], select {
+        width: 100%;
+        padding: 8px 10px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 13px;
+        outline: none;
+      }
+      input:focus, select:focus { border-color: #2563eb; }
+      .check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #374151; }
+      .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
+      button {
+        padding: 8px 16px;
+        border: 0;
+        border-radius: 6px;
+        background: #2563eb;
+        color: #fff;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      button.secondary { background: #eef2ff; color: #3730a3; }
+      button:disabled { opacity: 0.5; cursor: not-allowed; }
+      .progress { flex: 1; min-width: 200px; height: 8px; background: #e5e7eb; border-radius: 999px; overflow: hidden; }
+      .progress > i { display: block; height: 100%; width: 0; background: #2563eb; transition: width 0.2s; }
+      .status { font-size: 13px; color: #374151; }
+      .status.error { color: #b91c1c; }
+      .status.ok { color: #047857; }
+      pre {
+        margin: 12px 0 0;
+        padding: 12px;
+        background: #0f172a;
+        color: #d1d5db;
+        border-radius: 8px;
+        font-size: 12px;
+        max-height: 280px;
+        overflow: auto;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+      .log-title { display: flex; justify-content: space-between; align-items: center; margin-top: 24px; }
+      .log-title h2 { margin: 0; }
+      .note { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; border-radius: 8px; padding: 10px 12px; font-size: 13px; }
+      .note code, .hint code { background: rgba(0,0,0,0.06); padding: 1px 4px; border-radius: 3px; }
+      a { color: #2563eb; word-break: break-all; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>ling-oss-upload Demo</h1>
+      <p class="sub">覆盖五种上传方式：普通上传、STS 直传、分片上传、小程序服务端签名、小程序客户端签名。</p>
+
+      <section>
+        <h2>客户端签名凭证</h2>
+        <p class="hint">
+          仅 <code>upload()</code> 与 <code>createMiniUploadInfo()</code> 需要。页面会尝试读取
+          <code>/ossInfo.js</code> 自动填充；生产环境请使用下面两个零密钥模式。
+        </p>
+        <p class="hint">
+          如果 accessId 以 <code>STS.</code> 开头，必须同时填写 <code>securityToken</code>，否则 OSS 会报
+          “Access Key Id does not exist / Security Token may be lost”。
+        </p>
+        <p class="hint">
+          凭证只在本机使用，不会发送到 demo-server；<code>upload()</code> 会直接用它在浏览器签名并提交到 OSS。
+        </p>
+        <p class="hint" id="credStatus">正在读取 /ossInfo.js…</p>
+        <div class="grid">
+          <div>
+            <label>accessId</label>
+            <input id="credAccessId" type="text" autocomplete="off" />
+          </div>
+          <div>
+            <label>accessKey</label>
+            <input id="credAccessKey" type="password" autocomplete="off" />
+          </div>
+          <div>
+            <label>securityToken（STS 可选）</label>
+            <input id="credSecurityToken" type="text" autocomplete="off" />
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>1. 大文件分片上传 uploadLarge()</h2>
+        <p class="hint">
+          零密钥：通过签名服务获取分片 URL。OSS Bucket 需配置 CORS：允许 PUT/POST/GET/DELETE，
+          并暴露 <code>ETag</code> 响应头。
+        </p>
+        <p class="hint" id="apiConfig">正在通过接口获取配置…</p>
+        <div class="grid">
+          <div>
+            <label>签名服务地址（留空 = 同源）</label>
+            <input id="signBase" type="text" value="" placeholder="留空使用当前服务" />
+          </div>
+          <div>
+            <label>上传目录 dirName</label>
+            <input id="dirName" type="text" value="formal/test/demo" />
+          </div>
+          <div>
+            <label>分片大小 (MB)</label>
+            <input id="chunkSize" type="number" value="5" min="0.1" step="0.1" />
+          </div>
+          <div>
+            <label>并发数</label>
+            <input id="concurrency" type="number" value="3" min="1" max="6" />
+          </div>
+          <div>
+            <label>续传标识 resumeKey（可选）</label>
+            <input id="resumeKey" type="text" placeholder="留空则按文件指纹" />
+          </div>
+          <div>
+            <label>文件名</label>
+            <select id="selfName">
+              <option value="false">随机名 + 后缀</option>
+              <option value="true">保持原文件名</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row">
+          <input id="largeFile" type="file" />
+          <button id="startLarge">开始上传</button>
+          <button id="clearState" class="secondary">清除续传状态</button>
+        </div>
+
+        <div class="row">
+          <div class="progress"><i id="bar"></i></div>
+          <span class="status" id="largeStatus">等待选择文件</span>
+        </div>
+        <div class="row" id="resultRow" style="display: none">
+          <span class="status ok">上传成功：</span>
+          <a id="resultLink" target="_blank" rel="noopener"></a>
+        </div>
+      </section>
+
+      <section>
+        <h2>2. 浏览器表单上传 upload()</h2>
+        <p class="hint">
+          客户端签名：浏览器直接持有 AccessKey，通过 POST 表单上传。Bucket 需允许当前来源 POST。
+        </p>
+        <div class="grid">
+          <div>
+            <label>OSS 直传地址 host</label>
+            <input id="upHost" type="text" placeholder="https://bucket.oss-cn-xxx.aliyuncs.com" />
+          </div>
+          <div>
+            <label>上传目录 dirName</label>
+            <input id="upDir" type="text" value="formal/test/demo" />
+          </div>
+          <div>
+            <label>文件名</label>
+            <select id="upSelfName">
+              <option value="false">随机名 + 后缀</option>
+              <option value="true">保持原文件名</option>
+            </select>
+          </div>
+          <div>
+            <label>大小限制 (MB，0 为不限)</label>
+            <input id="upLimit" type="number" value="0" min="0" step="1" />
+          </div>
+          <div>
+            <label>类型限制</label>
+            <select id="upLimitType">
+              <option value="">不限制</option>
+              <option value="image">image</option>
+              <option value="video">video</option>
+            </select>
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <span class="check"><input id="upCompress" type="checkbox" checked /> 压缩图片</span>
+          </div>
+        </div>
+
+        <div class="row">
+          <input id="upFile" type="file" />
+          <button id="startUpload">开始上传</button>
+        </div>
+        <div class="row">
+          <div class="progress"><i id="upBar"></i></div>
+          <span class="status" id="upStatus">等待选择文件</span>
+        </div>
+        <div class="row" id="upResultRow" style="display: none">
+          <span class="status ok">上传成功：</span>
+          <a id="upResultLink" target="_blank" rel="noopener"></a>
+        </div>
+      </section>
+
+      <section>
+        <h2>3. 小程序 POST 上传</h2>
+        <p class="hint">
+          浏览器里用 <code>fetch</code> 模拟 <code>wx.uploadFile</code> 的 POST 表单。Bucket 需允许 POST 与当前来源。
+        </p>
+        <div class="grid">
+          <div>
+            <label>OSS 直传地址 host</label>
+            <input id="miniHost" type="text" placeholder="https://bucket.oss-cn-xxx.aliyuncs.com" />
+          </div>
+          <div>
+            <label>上传目录 dirName</label>
+            <input id="miniDir" type="text" value="formal/test/mini" />
+          </div>
+          <div>
+            <label>大小限制 (MB，0 为不限)</label>
+            <input id="miniLimit" type="number" value="0" min="0" step="1" />
+          </div>
+        </div>
+        <div class="row">
+          <input id="miniFile" type="file" />
+        </div>
+
+        <h3>3.1 服务端签名（零密钥）createMiniUploadInfoBySigner()</h3>
+        <div class="row">
+          <button id="miniSign">获取签名字段</button>
+          <button id="miniSignUpload" class="secondary">签名并上传</button>
+          <span class="status" id="miniStatus">未请求</span>
+        </div>
+
+        <h3>3.2 客户端签名 createMiniUploadInfo()</h3>
+        <div class="row">
+          <button id="miniClientFields">生成签名字段</button>
+          <button id="miniClientUpload" class="secondary">生成并上传</button>
+          <span class="status" id="miniClientStatus">未请求</span>
+        </div>
+
+        <pre id="miniOut" style="display: none"></pre>
+        <div class="row" id="miniResultRow" style="display: none">
+          <span class="status ok">上传成功：</span>
+          <a id="miniResultLink" target="_blank" rel="noopener"></a>
+        </div>
+      </section>
+
+      <section>
+        <h2>4. STS 直传 uploadBySts()（不分片）</h2>
+        <p class="hint">
+          通过 <code>/api/sts</code> 获取 STS 临时凭证，一次性 POST 上传整个文件。适合中小文件；
+          超过 5GB 请使用分片上传。生成 STS 需在 <code>ossInfo.js</code> 配置 <code>roleArn</code>（RAM 角色）；未配置时回退长期 AK/SK。
+        </p>
+        <p class="hint" id="stsInfo">尚未获取 STS 凭证</p>
+        <div class="grid">
+          <div>
+            <label>上传目录 dirName</label>
+            <input id="stsDir" type="text" value="formal/test/sts" />
+          </div>
+          <div>
+            <label>大小限制 (MB，0 为不限)</label>
+            <input id="stsLimit" type="number" value="0" min="0" step="1" />
+          </div>
+          <div>
+            <label>RAM 角色 ARN（生成 STS）</label>
+            <input id="stsRoleArn" type="text" placeholder="acs:ram::账号ID:role/角色名" />
+          </div>
+          <div>
+            <label>文件名</label>
+            <select id="stsSelfName">
+              <option value="false">随机名 + 后缀</option>
+              <option value="true">保持原文件名</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <input id="stsFile" type="file" />
+          <button id="startSts">获取 STS 并上传</button>
+        </div>
+        <div class="row">
+          <div class="progress"><i id="stsBar"></i></div>
+          <span class="status" id="stsStatus">等待选择文件</span>
+        </div>
+        <div class="row" id="stsResultRow" style="display: none">
+          <span class="status ok">上传成功：</span>
+          <a id="stsResultLink" target="_blank" rel="noopener"></a>
+        </div>
+      </section>
+
+      <div class="note">
+        断点续传测试：上传过程中刷新页面（不要等失败，失败会 abort 并清理状态），重新选择同一个文件再上传，
+        会命中 localStorage 中的 uploadId 与已传分片。点击“清除续传状态”可强制重新开始。
+      </div>
+
+      <div class="log-title">
+        <h2>请求日志</h2>
+        <button id="clearLog" class="secondary">清空</button>
+      </div>
+      <pre id="log">等待操作…</pre>
+    </main>
+
+    <script src="/index.js"></script>
+    <script>
+      (function () {
+        var PLACEHOLDER = "$" + "{filename}";
+        var logEl = document.getElementById("log");
+
+        function $(id) { return document.getElementById(id); }
+
+        function log() {
+          var text = Array.prototype.map
+            .call(arguments, function (arg) {
+              return typeof arg === "string" ? arg : JSON.stringify(arg);
+            })
+            .join(" ");
+          logEl.textContent =
+            new Date().toLocaleTimeString() + "  " + text + "\n" + logEl.textContent;
+        }
+
+        function errorText(err) {
+          if (!err) return "未知错误";
+          if (typeof err === "string") return err;
+          return err.message || err.data || JSON.stringify(err);
+        }
+
+        function setStatus(el, text, type) {
+          el.className = "status" + (type ? " " + type : "");
+          el.textContent = text;
+        }
+
+        function setProgress(el, percent) {
+          el.style.width = Math.max(0, Math.min(100, percent)) + "%";
+        }
+
+        document.getElementById("clearLog").onclick = function () {
+          logEl.textContent = "等待操作…";
+        };
+
+        if (!window.LingOssUpload) {
+          log("未找到 LingOssUpload，请确认已构建并加载 /index.js");
+          return;
+        }
+
+        var uploader = new LingOssUpload();
+        var apiConfig = null;
+        var lastOrigin = "";
+
+        // ---------- 接口配置 ----------
+        fetch("/api/config")
+          .then(function (res) { return res.json(); })
+          .then(function (cfg) {
+            apiConfig = cfg;
+            if (cfg.dirName) {
+              $("dirName").value = cfg.dirName;
+              $("upDir").value = cfg.dirName;
+              $("miniDir").value = cfg.dirName.replace(/demo$/, "mini");
+            }
+            $("upHost").value = cfg.submitUrl;
+            $("miniHost").value = cfg.submitUrl;
+            if (cfg.roleArn) $("stsRoleArn").value = cfg.roleArn;
+            $("apiConfig").textContent =
+              "接口配置：bucket=" + cfg.bucket +
+              " · region=" + cfg.region +
+              (cfg.cdnHost ? " · CDN=" + cfg.cdnHost : "") +
+              " · 直传地址=" + cfg.submitUrl;
+          })
+          .catch(function () {
+            $("apiConfig").textContent =
+              "未获取到 /api/config（当前可能不是 demo-server），请手动填写地址";
+          });
+
+        // ---------- 客户端凭证（仅 upload / createMiniUploadInfo 使用） ----------
+        import("/ossInfo.js")
+          .then(function (mod) {
+            var info = mod.default || mod || {};
+            $("credAccessId").value = info.accessId || "";
+            $("credAccessKey").value = info.accessKey || "";
+            $("credSecurityToken").value = info.securityToken || "";
+            var ok = Boolean(info.accessId && info.accessKey);
+            $("credStatus").className = "hint" + (ok ? " ok-text" : "");
+            $("credStatus").textContent = ok
+              ? "已从 /ossInfo.js 读取凭证（仅本地 demo 使用）"
+              : "未能读取凭证，请手动填写";
+          })
+          .catch(function () {
+            $("credStatus").textContent = "未读取到 /ossInfo.js，请手动填写凭证";
+          });
+
+        function clientUploader() {
+          var accessId = $("credAccessId").value.trim();
+          var accessKey = $("credAccessKey").value.trim();
+          var securityToken = $("credSecurityToken").value.trim();
+          if (!accessId || !accessKey) {
+            throw new Error("请先填写 accessId / accessKey");
+          }
+          var info = { accessId: accessId, accessKey: accessKey };
+          if (securityToken) info.securityToken = securityToken;
+          return new LingOssUpload(info, {});
+        }
+
+        function cdnUrl(key) {
+          var base = (apiConfig && apiConfig.cdnHost) || lastOrigin;
+          return (base ? base.replace(/\/$/, "") + "/" : "") + key;
+        }
+
+        // ---------- 分片上传签名 ----------
+        function signBase() {
+          return $("signBase").value.replace(/\/$/, "");
+        }
+
+        function getSignedUrl(req) {
+          var qs = new URLSearchParams(req).toString();
+          log("[sign]", req.action, req.objectKey, "part=" + (req.partNumber || "-"));
+          return fetch(signBase() + "/sign?" + qs)
+            .then(function (res) {
+              return res.json().then(function (data) {
+                if (!res.ok) throw new Error(data.error || "签名失败");
+                return data.url;
+              });
+            })
+            .then(function (signed) {
+              try { lastOrigin = new URL(signed).origin; } catch (e) {}
+              return signed;
+            });
+        }
+
+        // ---------- 1. uploadLarge ----------
+        var bar = $("bar");
+        var largeStatus = $("largeStatus");
+        var startLarge = $("startLarge");
+        var largeFile = $("largeFile");
+
+        largeFile.onchange = function () {
+          var f = largeFile.files[0];
+          setStatus(largeStatus, f ? f.name + " · " + (f.size / 1024 / 1024).toFixed(2) + " MB" : "等待选择文件");
+          $("resultRow").style.display = "none";
+        };
+
+        startLarge.onclick = function () {
+          var file = largeFile.files[0];
+          if (!file) {
+            setStatus(largeStatus, "请先选择文件", "error");
+            return;
+          }
+          var chunkMB = parseFloat($("chunkSize").value);
+          var concurrency = parseInt($("concurrency").value, 10);
+          var resumeKey = $("resumeKey").value.trim();
+
+          startLarge.disabled = true;
+          setProgress(bar, 0);
+          $("resultRow").style.display = "none";
+          setStatus(largeStatus, "上传中…");
+          log("[uploadLarge] 开始", file.name, (file.size / 1024 / 1024).toFixed(2) + "MB");
+
+          uploader
+            .uploadLarge({
+              file: file,
+              dirName: $("dirName").value.trim(),
+              getSignedUrl: getSignedUrl,
+              selfName: $("selfName").value === "true",
+              chunkSize: Math.max(100 * 1024, Math.round(chunkMB * 1024 * 1024)),
+              concurrency: concurrency || 3,
+              resumeKey: resumeKey || undefined,
+              onProgress: function (e) {
+                var percent = e.total ? Math.floor((e.loaded / e.total) * 100) : 0;
+                setProgress(bar, percent);
+                setStatus(
+                  largeStatus,
+                  percent + "%  " +
+                    (e.loaded / 1024 / 1024).toFixed(1) + " / " +
+                    (e.total / 1024 / 1024).toFixed(1) + " MB"
+                );
+              }
+            })
+            .then(function (data) {
+              log("[uploadLarge] 成功", data);
+              setStatus(largeStatus, "上传成功 100%", "ok");
+              setProgress(bar, 100);
+              var url = cdnUrl(data.data);
+              $("resultLink").href = url;
+              $("resultLink").textContent = url;
+              $("resultRow").style.display = "flex";
+            })
+            .catch(function (err) {
+              log("[uploadLarge] 失败", err);
+              setStatus(largeStatus, errorText(err), "error");
+            })
+            .then(function () {
+              startLarge.disabled = false;
+            });
+        };
+
+        $("clearState").onclick = function () {
+          var keys = [];
+          for (var i = 0; i < localStorage.length; i++) {
+            var k = localStorage.key(i);
+            if (k && k.indexOf("ling-oss-upload:") === 0) keys.push(k);
+          }
+          keys.forEach(function (k) { localStorage.removeItem(k); });
+          log("[resume] 已清除 " + keys.length + " 条续传状态");
+        };
+
+        // ---------- 2. upload() ----------
+        var upBar = $("upBar");
+        var upStatus = $("upStatus");
+        var startUpload = $("startUpload");
+
+        $("upFile").onchange = function () {
+          var f = this.files[0];
+          setStatus(upStatus, f ? f.name + " · " + (f.size / 1024 / 1024).toFixed(2) + " MB" : "等待选择文件");
+          $("upResultRow").style.display = "none";
+        };
+
+        startUpload.onclick = function () {
+          var file = $("upFile").files[0];
+          if (!file) {
+            setStatus(upStatus, "请先选择文件", "error");
+            return;
+          }
+
+          var client;
+          try {
+            client = clientUploader();
+          } catch (e) {
+            setStatus(upStatus, errorText(e), "error");
+            return;
+          }
+
+          var host = $("upHost").value.trim();
+          if (!host) {
+            setStatus(upStatus, "请填写 OSS 直传地址", "error");
+            return;
+          }
+          var limitMB = parseFloat($("upLimit").value || "0");
+          var limitType = $("upLimitType").value;
+
+          startUpload.disabled = true;
+          setProgress(upBar, 0);
+          $("upResultRow").style.display = "none";
+          setStatus(upStatus, "上传中…");
+          log("[upload] 开始", file.name);
+
+          client
+            .upload({
+              file: file,
+              host: host,
+              cdnHost: (apiConfig && apiConfig.cdnHost) || host,
+              dirName: $("upDir").value.trim(),
+              selfName: $("upSelfName").value === "true",
+              limitSize: limitMB > 0 ? Math.round(limitMB * 1024 * 1024) : 0,
+              limitType: limitType,
+              isCompressor: $("upCompress").checked,
+              onProgress: function (e) {
+                var percent = e.total ? Math.floor((e.loaded / e.total) * 100) : 0;
+                setProgress(upBar, percent);
+                setStatus(upStatus, percent + "%");
+              }
+            })
+            .then(function (data) {
+              log("[upload] 成功", data);
+              setStatus(upStatus, "上传成功", "ok");
+              setProgress(upBar, 100);
+              $("upResultLink").href = data.data;
+              $("upResultLink").textContent = data.data;
+              $("upResultRow").style.display = "flex";
+            })
+            .catch(function (err) {
+              log("[upload] 失败", err);
+              setStatus(upStatus, errorText(err), "error");
+            })
+            .then(function () {
+              startUpload.disabled = false;
+            });
+        };
+
+        // ---------- 3. 小程序 POST ----------
+        var miniStatus = $("miniStatus");
+        var miniClientStatus = $("miniClientStatus");
+        var miniOut = $("miniOut");
+
+        function miniLimitSize() {
+          var mb = parseFloat($("miniLimit").value || "0");
+          return mb > 0 ? Math.round(mb * 1024 * 1024) : 0;
+        }
+
+        function showMini(info) {
+          miniOut.style.display = "block";
+          miniOut.textContent = JSON.stringify(info, null, 2);
+        }
+
+        function fetchMiniSigned() {
+          return uploader.createMiniUploadInfoBySigner({
+            dirName: $("miniDir").value.trim(),
+            limitSize: miniLimitSize(),
+            getMiniUploadInfo: function (req) {
+              var qs = new URLSearchParams(req).toString();
+              log("[mini-post]", req.objectKey, "limitSize=" + (req.limitSize || 0));
+              return fetch(signBase() + "/mini-post?" + qs).then(function (res) {
+                return res.json().then(function (data) {
+                  if (!res.ok) throw new Error(data.error || "签名失败");
+                  return data;
+                });
+              });
+            }
+          });
+        }
+
+        // 模拟 wx.uploadFile: 用 FormData POST 到 OSS
+        function postToOss(host, fields, file) {
+          if (!host) {
+            return Promise.reject(new Error("请填写 OSS 直传地址"));
+          }
+          var key = String(fields.key || "").split(PLACEHOLDER).join(file.name);
+          var formData = new FormData();
+          formData.append("key", key);
+          ["policy", "OSSAccessKeyId", "signature", "x-oss-security-token"].forEach(function (k) {
+            if (fields[k]) formData.append(k, fields[k]);
+          });
+          formData.append("success_action_status", String(fields.success_action_status || 200));
+          formData.append("file", file, file.name);
+
+          log("[post]", host, key);
+          return fetch(host, { method: "POST", body: formData }).then(function (res) {
+            if (res.ok || res.status === 204) return key;
+            return res.text().then(function (text) {
+              throw new Error(text || "HTTP " + res.status);
+            });
+          });
+        }
+
+        $("miniSign").onclick = function () {
+          this.disabled = true;
+          setStatus(miniStatus, "请求中…");
+          fetchMiniSigned()
+            .then(function (info) {
+              showMini(info);
+              setStatus(miniStatus, "已获取签名字段", "ok");
+              log("[mini-post] 成功", info);
+              return info;
+            })
+            .catch(function (err) {
+              setStatus(miniStatus, errorText(err), "error");
+              log("[mini-post] 失败", err);
+            })
+            .then(function () {
+              $("miniSign").disabled = false;
+            });
+        };
+
+        $("miniSignUpload").onclick = function () {
+          var file = $("miniFile").files[0];
+          if (!file) {
+            setStatus(miniStatus, "请先选择文件", "error");
+            return;
+          }
+          this.disabled = true;
+          setStatus(miniStatus, "签名中…");
+          $("miniResultRow").style.display = "none";
+
+          fetchMiniSigned()
+            .then(function (info) {
+              showMini(info);
+              log("[mini-post] 已签名", info.key);
+              return postToOss($("miniHost").value.trim(), info, file);
+            })
+            .then(function (key) {
+              setStatus(miniStatus, "上传成功", "ok");
+              $("miniResultLink").href = cdnUrl(key);
+              $("miniResultLink").textContent = cdnUrl(key);
+              $("miniResultRow").style.display = "flex";
+            })
+            .catch(function (err) {
+              setStatus(miniStatus, errorText(err), "error");
+              log("[mini-post] 上传失败", err);
+            })
+            .then(function () {
+              $("miniSignUpload").disabled = false;
+            });
+        };
+
+        $("miniClientFields").onclick = function () {
+          setStatus(miniClientStatus, "生成中…");
+          try {
+            var info = clientUploader().createMiniUploadInfo({
+              dirName: $("miniDir").value.trim(),
+              limitSize: miniLimitSize()
+            });
+            showMini(info);
+            setStatus(miniClientStatus, "已生成签名字段", "ok");
+            log("[mini-client] 成功", info);
+          } catch (e) {
+            setStatus(miniClientStatus, errorText(e), "error");
+            log("[mini-client] 失败", e);
+          }
+        };
+
+        $("miniClientUpload").onclick = function () {
+          var file = $("miniFile").files[0];
+          if (!file) {
+            setStatus(miniClientStatus, "请先选择文件", "error");
+            return;
+          }
+          this.disabled = true;
+          setStatus(miniClientStatus, "生成并上传…");
+          $("miniResultRow").style.display = "none";
+
+          Promise.resolve()
+            .then(function () {
+              var info = clientUploader().createMiniUploadInfo({
+                dirName: $("miniDir").value.trim(),
+                limitSize: miniLimitSize()
+              });
+              showMini(info);
+              log("[mini-client] 已签名", info.key);
+              return postToOss($("miniHost").value.trim(), info, file);
+            })
+            .then(function (key) {
+              setStatus(miniClientStatus, "上传成功", "ok");
+              $("miniResultLink").href = cdnUrl(key);
+              $("miniResultLink").textContent = cdnUrl(key);
+              $("miniResultRow").style.display = "flex";
+            })
+            .catch(function (err) {
+              setStatus(miniClientStatus, errorText(err), "error");
+              log("[mini-client] 上传失败", err);
+            })
+            .then(function () {
+              $("miniClientUpload").disabled = false;
+            });
+        };
+
+        // ---------- 4. uploadBySts ----------
+        var stsBar = $("stsBar");
+        var stsStatus = $("stsStatus");
+        var startSts = $("startSts");
+
+        $("stsFile").onchange = function () {
+          var f = this.files[0];
+          setStatus(stsStatus, f ? f.name + " · " + (f.size / 1024 / 1024).toFixed(2) + " MB" : "等待选择文件");
+          $("stsResultRow").style.display = "none";
+        };
+
+        function getStsToken() {
+          var roleArn = $("stsRoleArn").value.trim();
+          var url = "/api/sts" + (roleArn ? "?roleArn=" + encodeURIComponent(roleArn) : "");
+          log("[sts] 请求 /api/sts", roleArn || "(未指定角色)");
+          return fetch(url).then(function (res) {
+            return res.json().then(function (data) {
+              if (!res.ok) throw new Error(data.error || "获取 STS 凭证失败");
+              if (data.temporary === false) {
+                $("stsInfo").className = "hint";
+                $("stsInfo").textContent = "⚠️ " + (data.warning || "当前使用长期凭证");
+              } else {
+                $("stsInfo").className = "hint ok-text";
+                $("stsInfo").textContent =
+                  "STS 凭证：" + String(data.accessId || "").slice(0, 8) + "***" +
+                  (data.expiration ? " · 过期时间 " + data.expiration : "");
+              }
+              return data;
+            });
+          });
+        }
+
+        startSts.onclick = function () {
+          var file = $("stsFile").files[0];
+          if (!file) {
+            setStatus(stsStatus, "请先选择文件", "error");
+            return;
+          }
+          if (!apiConfig || !apiConfig.submitUrl) {
+            setStatus(stsStatus, "尚未获取到接口配置，请刷新页面", "error");
+            return;
+          }
+
+          var limitMB = parseFloat($("stsLimit").value || "0");
+
+          startSts.disabled = true;
+          setProgress(stsBar, 0);
+          $("stsResultRow").style.display = "none";
+          setStatus(stsStatus, "获取 STS…");
+          log("[uploadBySts] 开始", file.name);
+
+          uploader
+            .uploadBySts({
+              file: file,
+              host: apiConfig.submitUrl,
+              cdnHost: apiConfig.cdnHost || apiConfig.submitUrl,
+              dirName: $("stsDir").value.trim(),
+              selfName: $("stsSelfName").value === "true",
+              limitSize: limitMB > 0 ? Math.round(limitMB * 1024 * 1024) : 0,
+              getStsToken: getStsToken,
+              onProgress: function (e) {
+                var percent = e.total ? Math.floor((e.loaded / e.total) * 100) : 0;
+                setProgress(stsBar, percent);
+                setStatus(stsStatus, "上传中 " + percent + "%");
+              }
+            })
+            .then(function (data) {
+              log("[uploadBySts] 成功", data);
+              setStatus(stsStatus, "上传成功", "ok");
+              setProgress(stsBar, 100);
+              $("stsResultLink").href = data.data;
+              $("stsResultLink").textContent = data.data;
+              $("stsResultRow").style.display = "flex";
+            })
+            .catch(function (err) {
+              log("[uploadBySts] 失败", err);
+              setStatus(stsStatus, errorText(err), "error");
+            })
+            .then(function () {
+              startSts.disabled = false;
+            });
+        };
+      })();
+    </script>
+  </body>
+</html>
