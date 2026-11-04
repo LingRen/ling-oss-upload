@@ -70,6 +70,18 @@ class LingOssUpload {
   }
 
   /**
+   * 校验客户端签名所需凭证：STS AccessId 必须同时提供 securityToken
+   */
+  private ensureOssCredentials(): void {
+    if (!this.ossAccessId || !this.ossAccessKey) {
+      throw new Error("check oss accessId || accessKey");
+    }
+    if (this.ossAccessId.indexOf("STS.") === 0 && !this.ossInfo.securityToken) {
+      throw new Error("STS AccessId 需要同时提供 securityToken");
+    }
+  }
+
+  /**
    * 进行Policy base64编码
    * @param {number} limitSize 上传大小限制
    */
@@ -163,12 +175,7 @@ class LingOssUpload {
     isCompressor = true,
     options = {}
   }: UploadType): Promise<OutType> {
-    if (!this.ossAccessId || !this.ossAccessKey) {
-      throw new Error("check oss accessId || accessKey");
-    }
-    if (this.ossAccessId.indexOf("STS.") === 0 && !this.ossInfo.securityToken) {
-      throw new Error("STS AccessId 需要同时提供 securityToken");
-    }
+    this.ensureOssCredentials();
     // 获取文件信息，
     const fileName = file.name;
     const fileSize = file.size;
@@ -255,12 +262,7 @@ class LingOssUpload {
     limitSize = 0,
     selfName = false
   }: MiniUploadType): MiniOutType {
-    if (!this.ossAccessId || !this.ossAccessKey) {
-      throw new Error("check oss accessId || accessKey");
-    }
-    if (this.ossAccessId.indexOf("STS.") === 0 && !this.ossInfo.securityToken) {
-      throw new Error("STS AccessId 需要同时提供 securityToken");
-    }
+    this.ensureOssCredentials();
     // gen random file name
     const fileName = this.getCalculateObjectName("", selfName);
     const policy = this.getPolicyBase64(limitSize);
@@ -329,9 +331,6 @@ class LingOssUpload {
 
     if (!accessId || !accessKey) {
       throw new Error("check sts accessId || accessKey");
-    }
-    if (String(accessId).indexOf("STS.") === 0 && !securityToken) {
-      throw new Error("STS AccessId 需要同时提供 securityToken");
     }
 
     const uploader = new LingOssUpload(

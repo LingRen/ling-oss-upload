@@ -196,6 +196,17 @@ var LingOssUpload = /** @class */ (function () {
         configurable: true
     });
     /**
+     * 校验客户端签名所需凭证：STS AccessId 必须同时提供 securityToken
+     */
+    LingOssUpload.prototype.ensureOssCredentials = function () {
+        if (!this.ossAccessId || !this.ossAccessKey) {
+            throw new Error("check oss accessId || accessKey");
+        }
+        if (this.ossAccessId.indexOf("STS.") === 0 && !this.ossInfo.securityToken) {
+            throw new Error("STS AccessId 需要同时提供 securityToken");
+        }
+    };
+    /**
      * 进行Policy base64编码
      * @param {number} limitSize 上传大小限制
      */
@@ -277,12 +288,7 @@ var LingOssUpload = /** @class */ (function () {
             return __generator(this, function (_k) {
                 switch (_k.label) {
                     case 0:
-                        if (!this.ossAccessId || !this.ossAccessKey) {
-                            throw new Error("check oss accessId || accessKey");
-                        }
-                        if (this.ossAccessId.indexOf("STS.") === 0 && !this.ossInfo.securityToken) {
-                            throw new Error("STS AccessId 需要同时提供 securityToken");
-                        }
+                        this.ensureOssCredentials();
                         fileName = file.name;
                         fileSize = file.size;
                         fileType = file.type;
@@ -365,12 +371,7 @@ var LingOssUpload = /** @class */ (function () {
      */
     LingOssUpload.prototype.createMiniUploadInfo = function (_a) {
         var dirName = _a.dirName, _b = _a.limitSize, limitSize = _b === void 0 ? 0 : _b, _c = _a.selfName, selfName = _c === void 0 ? false : _c;
-        if (!this.ossAccessId || !this.ossAccessKey) {
-            throw new Error("check oss accessId || accessKey");
-        }
-        if (this.ossAccessId.indexOf("STS.") === 0 && !this.ossInfo.securityToken) {
-            throw new Error("STS AccessId 需要同时提供 securityToken");
-        }
+        this.ensureOssCredentials();
         // gen random file name
         var fileName = this.getCalculateObjectName("", selfName);
         var policy = this.getPolicyBase64(limitSize);
@@ -441,9 +442,6 @@ var LingOssUpload = /** @class */ (function () {
                                 token.token);
                         if (!accessId || !accessKey) {
                             throw new Error("check sts accessId || accessKey");
-                        }
-                        if (String(accessId).indexOf("STS.") === 0 && !securityToken) {
-                            throw new Error("STS AccessId 需要同时提供 securityToken");
                         }
                         uploader = new LingOssUpload({ accessId: accessId, accessKey: accessKey, securityToken: securityToken }, this.options);
                         return [2 /*return*/, uploader.upload(uploadOptions)];
