@@ -26,6 +26,7 @@ export interface MiniUploadType {
   dirName: string;
   limitSize?: number;
   selfName?: boolean;
+  fileName?: string;
 }
 
 export interface OutType {
@@ -101,6 +102,7 @@ export interface MiniUploadBySignerOptions {
   getMiniUploadInfo: GetMiniUploadInfo;
   limitSize?: number;
   selfName?: boolean;
+  fileName?: string;
 }
 
 export interface StsToken {

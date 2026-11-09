@@ -255,6 +255,14 @@ var LingOssUpload = /** @class */ (function () {
      * @param {string} filename 文件名
      * @param {boolean} selfName 是否采用自身文件名称
      */
+    /**
+     * 小程序场景无法使用 OSS 的 filename 占位符，直接把传入的文件名拼进 key
+     */
+    LingOssUpload.prototype.getMiniObjectName = function (fileName, selfName) {
+        return this.getCalculateObjectName(fileName, selfName)
+            .split("${filename}")
+            .join(fileName);
+    };
     LingOssUpload.prototype.getCalculateObjectName = function (filename, selfName) {
         var objectName = "";
         if (selfName) {
@@ -368,17 +376,18 @@ var LingOssUpload = /** @class */ (function () {
      * create mini upload file oss info
      * @param {string} dirName upload file dir path
      * @param {number} limitSize upload file size limit
+     * @param {boolean} selfName 是否使用文件原名
+     * @param {string} fileName 文件原名，selfName 为 true 时生效
      */
     LingOssUpload.prototype.createMiniUploadInfo = function (_a) {
-        var dirName = _a.dirName, _b = _a.limitSize, limitSize = _b === void 0 ? 0 : _b, _c = _a.selfName, selfName = _c === void 0 ? false : _c;
+        var dirName = _a.dirName, _b = _a.limitSize, limitSize = _b === void 0 ? 0 : _b, _c = _a.selfName, selfName = _c === void 0 ? false : _c, _d = _a.fileName, fileName = _d === void 0 ? "" : _d;
         this.ensureOssCredentials();
-        // gen random file name
-        var fileName = this.getCalculateObjectName("", selfName);
+        var objectFileName = this.getMiniObjectName(fileName, selfName);
         var policy = this.getPolicyBase64(limitSize);
         var signature = this.getSignature(this.ossAccessKey, policy);
-        var objectName = this.getDirName(dirName) + fileName;
+        var objectName = this.getDirName(dirName) + objectFileName;
         return {
-            name: fileName,
+            name: objectFileName,
             key: objectName,
             success_action_status: 200,
             OSSAccessKeyId: this.ossAccessId,
@@ -393,19 +402,19 @@ var LingOssUpload = /** @class */ (function () {
      * @param {MiniUploadBySignerOptions} options 配置项
      */
     LingOssUpload.prototype.createMiniUploadInfoBySigner = function (_a) {
-        var dirName = _a.dirName, getMiniUploadInfo = _a.getMiniUploadInfo, _b = _a.limitSize, limitSize = _b === void 0 ? 0 : _b, _c = _a.selfName, selfName = _c === void 0 ? false : _c;
+        var dirName = _a.dirName, getMiniUploadInfo = _a.getMiniUploadInfo, _b = _a.limitSize, limitSize = _b === void 0 ? 0 : _b, _c = _a.selfName, selfName = _c === void 0 ? false : _c, _d = _a.fileName, fileName = _d === void 0 ? "" : _d;
         return __awaiter(this, void 0, void 0, function () {
-            var fileName, objectName, signed;
-            return __generator(this, function (_d) {
-                switch (_d.label) {
+            var objectFileName, objectName, signed;
+            return __generator(this, function (_e) {
+                switch (_e.label) {
                     case 0:
-                        fileName = this.getCalculateObjectName("", selfName);
-                        objectName = this.getDirName(dirName) + fileName;
+                        objectFileName = this.getMiniObjectName(fileName, selfName);
+                        objectName = this.getDirName(dirName) + objectFileName;
                         return [4 /*yield*/, getMiniUploadInfo({ objectKey: objectName, limitSize: limitSize })];
                     case 1:
-                        signed = _d.sent();
+                        signed = _e.sent();
                         return [2 /*return*/, {
-                                name: fileName,
+                                name: objectFileName,
                                 key: objectName,
                                 success_action_status: 200,
                                 OSSAccessKeyId: signed.OSSAccessKeyId,

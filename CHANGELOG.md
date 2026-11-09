@@ -4,6 +4,14 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.6.1] - 2026-11-09
+
+### Added
+- `createMiniUploadInfo()` / `createMiniUploadInfoBySigner()` 新增 `fileName` 参数
+
+### Fixed
+- 小程序两种签名方式的 `selfName` 之前不生效，现在配合 `fileName` 可以使用文件原名
+
 ## [2.6.0] - 2026-11-04
 
 ### Added

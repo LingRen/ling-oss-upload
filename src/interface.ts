@@ -26,6 +26,8 @@ export interface MiniUploadType {
   dirName: string;
   limitSize?: number;
   selfName?: boolean;
+  /** 文件原名，selfName 为 true 时作为 objectKey */
+  fileName?: string;
 }
 
 export interface OutType {
@@ -102,6 +104,8 @@ export interface MiniUploadBySignerOptions {
   getMiniUploadInfo: GetMiniUploadInfo;
   limitSize?: number;
   selfName?: boolean;
+  /** 文件原名，selfName 为 true 时作为 objectKey */
+  fileName?: string;
 }
 
 /** STS 临时凭证 */

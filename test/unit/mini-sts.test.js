@@ -64,4 +64,43 @@ describe("createMiniUploadInfoBySigner 小程序零密钥上传", () => {
     expect(info.signature).toBeTruthy();
     expect(info["x-oss-security-token"]).toBe("token123");
   });
+
+  test("4.4 createMiniUploadInfo 支持 fileName 原名", () => {
+    const uploader = new LingOssUpload({
+      accessId: "ak",
+      accessKey: "sk"
+    });
+
+    const info = uploader.createMiniUploadInfo({
+      dirName: "formal",
+      selfName: true,
+      fileName: "photo.jpg"
+    });
+
+    expect(info.name).toBe("photo.jpg");
+    expect(info.key).toBe("formal/photo.jpg");
+  });
+
+  test("4.5 createMiniUploadInfoBySigner 支持 fileName 原名", async () => {
+    const uploader = new LingOssUpload();
+    let signedKey = "";
+
+    const result = await uploader.createMiniUploadInfoBySigner({
+      dirName: "formal",
+      selfName: true,
+      fileName: "photo.jpg",
+      getMiniUploadInfo: async (req) => {
+        signedKey = req.objectKey;
+        return {
+          OSSAccessKeyId: "sts-access-id",
+          policy: "policy-b64",
+          signature: "signature-b64"
+        };
+      }
+    });
+
+    expect(result.name).toBe("photo.jpg");
+    expect(result.key).toBe("formal/photo.jpg");
+    expect(signedKey).toBe("formal/photo.jpg");
+  });
 });

@@ -137,6 +137,15 @@ class LingOssUpload {
    * @param {string} filename 文件名
    * @param {boolean} selfName 是否采用自身文件名称
    */
+  /**
+   * 小程序场景无法使用 OSS 的 filename 占位符，直接把传入的文件名拼进 key
+   */
+  private getMiniObjectName(fileName: string, selfName: boolean): string {
+    return this.getCalculateObjectName(fileName, selfName)
+      .split("${filename}")
+      .join(fileName);
+  }
+
   getCalculateObjectName(filename: string, selfName: boolean): string {
     let objectName = "";
     if (selfName) {
@@ -256,21 +265,23 @@ class LingOssUpload {
    * create mini upload file oss info
    * @param {string} dirName upload file dir path
    * @param {number} limitSize upload file size limit
+   * @param {boolean} selfName 是否使用文件原名
+   * @param {string} fileName 文件原名，selfName 为 true 时生效
    */
   createMiniUploadInfo({
     dirName,
     limitSize = 0,
-    selfName = false
+    selfName = false,
+    fileName = ""
   }: MiniUploadType): MiniOutType {
     this.ensureOssCredentials();
-    // gen random file name
-    const fileName = this.getCalculateObjectName("", selfName);
+    const objectFileName = this.getMiniObjectName(fileName, selfName);
     const policy = this.getPolicyBase64(limitSize);
     const signature = this.getSignature(this.ossAccessKey, policy);
-    const objectName = this.getDirName(dirName) + fileName;
+    const objectName = this.getDirName(dirName) + objectFileName;
 
     return {
-      name: fileName,
+      name: objectFileName,
       key: objectName,
       success_action_status: 200,
       OSSAccessKeyId: this.ossAccessId,
@@ -288,17 +299,18 @@ class LingOssUpload {
     dirName,
     getMiniUploadInfo,
     limitSize = 0,
-    selfName = false
+    selfName = false,
+    fileName = ""
   }: MiniUploadBySignerOptions): Promise<MiniOutType> {
-    // 计算 objectKey（复用命名逻辑，无需密钥）
-    const fileName = this.getCalculateObjectName("", selfName);
-    const objectName = this.getDirName(dirName) + fileName;
+    // 计算 objectKey（无需密钥）
+    const objectFileName = this.getMiniObjectName(fileName, selfName);
+    const objectName = this.getDirName(dirName) + objectFileName;
 
     // 从后端获取签名 POST 字段
     const signed = await getMiniUploadInfo({ objectKey: objectName, limitSize });
 
     return {
-      name: fileName,
+      name: objectFileName,
       key: objectName,
       success_action_status: 200,
       OSSAccessKeyId: signed.OSSAccessKeyId,

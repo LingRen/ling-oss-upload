@@ -292,7 +292,7 @@ const url = client.signatureUrl(objectKey, {
 ### 实现流程
 
 1. 校验凭证，STS accessId 必须带 `securityToken`
-2. 生成随机 objectKey
+2. 生成 objectKey：`selfName: true` 且传入 `fileName` 时使用原名，否则随机名
 3. 生成 policy 并用 HMAC-SHA1 计算签名
 4. 返回 POST 表单字段，交给 `wx.uploadFile`
 
@@ -302,7 +302,8 @@ const url = client.signatureUrl(objectKey, {
 | :----: | :----: | :----: | :---- |
 | dirName | String | ———— | OSS 目录 |
 | limitSize | Number | 0 | 大小限制（字节） |
-| selfName | Boolean | false | 小程序接口不接收文件名，通常使用随机名 |
+| selfName | Boolean | false | 是否使用文件原名 |
+| fileName | String | '' | 文件原名，`selfName: true` 时生效 |
 
 ### 示例
 
@@ -314,7 +315,9 @@ const uploader = new LingOssUpload({
 
 const formData = uploader.createMiniUploadInfo({
   dirName: "formal/test/mini",
-  limitSize: 5 * 1024 * 1024
+  limitSize: 5 * 1024 * 1024,
+  selfName: true,
+  fileName: "photo.jpg" // key 变为 formal/test/mini/photo.jpg
 });
 
 wx.chooseImage({
@@ -350,6 +353,7 @@ wx.chooseImage({
 
 - 小程序持有密钥，适合内部工具；生产建议用服务端签名
 - 使用 STS 时，返回字段中会带 `x-oss-security-token`
+- `selfName: true` 但未传 `fileName` 时仍会生成随机名
 
 ---
 
@@ -357,7 +361,7 @@ wx.chooseImage({
 
 ### 实现流程
 
-1. 生成 objectKey（随机名，不需要密钥）
+1. 生成 objectKey（默认随机名；`selfName: true` + `fileName` 时使用原名，不需要密钥）
 2. 调用 `getMiniUploadInfo({ objectKey, limitSize })`
 3. 合并后端返回的 `OSSAccessKeyId` / `policy` / `signature` / `x-oss-security-token`
 4. 返回与 `createMiniUploadInfo()` 相同结构
@@ -369,7 +373,8 @@ wx.chooseImage({
 | dirName | String | ———— | OSS 目录 |
 | getMiniUploadInfo | Function | ———— | 获取签名 POST 字段 |
 | limitSize | Number | 0 | 大小限制（字节） |
-| selfName | Boolean | false | 小程序接口不接收文件名，通常使用随机名 |
+| selfName | Boolean | false | 是否使用文件原名 |
+| fileName | String | '' | 文件原名，`selfName: true` 时生效 |
 
 ### 后端契约
 
@@ -397,6 +402,8 @@ const getMiniUploadInfo = (req) => {
 const formData = await uploader.createMiniUploadInfoBySigner({
   dirName: "formal/test/mini",
   limitSize: 5 * 1024 * 1024,
+  selfName: true,
+  fileName: "photo.jpg", // 后端会收到 objectKey = formal/test/mini/photo.jpg
   getMiniUploadInfo
 });
 
@@ -410,7 +417,7 @@ wx.uploadFile({
 
 ### 说明
 
-- policy 中的 key 必须与生成的 objectKey 一致
+- policy 中的 key 必须与生成的 objectKey 一致；使用原名时后端会收到精确的文件名，现有 `eq $key` 策略可直接工作
 - 后端可以用 STS 临时凭证或长期 AK/SK 签名
 - 生产环境推荐这种方式，小程序不接触长期密钥
 
